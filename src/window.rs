@@ -1,4 +1,5 @@
 use crate::*;
+use std::sync::atomic::{self, AtomicU64};
 use windows::core::{HSTRING, PCWSTR};
 use windows::Win32::{
     Foundation::{HINSTANCE, HWND, LPARAM, POINT, RECT, WPARAM},
@@ -35,16 +36,23 @@ pub(crate) type Sender<T> = tokio::sync::mpsc::UnboundedSender<T>;
 
 pub type RecvEvent = (Event, Window);
 
+fn gen_id() -> u64 {
+    static ID: AtomicU64 = AtomicU64::new(0);
+    ID.fetch_add(1, atomic::Ordering::SeqCst)
+}
+
 pub struct EventReceiver {
-    tx: Sender<RecvEvent>,
+    id: u64,
     rx: Receiver<RecvEvent>,
 }
 
 impl EventReceiver {
     #[inline]
     pub fn new() -> Self {
+        let id = gen_id();
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-        Self { tx, rx }
+        Context::register_event_tx(id, tx);
+        Self { id, rx }
     }
 
     #[inline]
@@ -53,13 +61,14 @@ impl EventReceiver {
     }
 
     #[inline]
-    pub fn try_recv(&mut self) -> Option<RecvEvent> {
-        self.rx.try_recv().ok()
-    }
+    pub fn try_recv(&mut self) -> Result<Option<RecvEvent>> {
+        use tokio::sync::mpsc::error::TryRecvError;
 
-    #[inline]
-    pub async fn recv_async(&mut self) -> Option<RecvEvent> {
-        self.rx.recv().await
+        match self.rx.try_recv() {
+            Ok(ret) => Ok(Some(ret)),
+            Err(TryRecvError::Empty) => Ok(None),
+            Err(TryRecvError::Disconnected) => Err(Error::UiThreadClosed),
+        }
     }
 }
 
@@ -124,11 +133,11 @@ struct BuilderProps<Sz> {
     title: HSTRING,
     inner_size: Sz,
     visiblity: bool,
-    event_tx: Sender<RecvEvent>,
+    event_rx_id: u64,
 }
 
 impl<Sz> BuilderProps<Sz> {
-    fn new<Title>(builder: WindowBuilder<Title, Sz>, event_tx: Sender<RecvEvent>) -> Self
+    fn new<Title>(builder: WindowBuilder<Title, Sz>, event_rx_id: u64) -> Self
     where
         Title: Into<String>,
         Sz: ToPhysical<u32, Output<u32> = PhysicalSize<u32>> + Send + 'static,
@@ -137,7 +146,7 @@ impl<Sz> BuilderProps<Sz> {
             title: HSTRING::from(builder.title.into()),
             inner_size: builder.inner_size,
             visiblity: builder.visibility,
-            event_tx,
+            event_rx_id,
         }
     }
 }
@@ -173,7 +182,7 @@ where
         if props.visiblity {
             ShowWindow(hwnd, SW_SHOW);
         }
-        Context::register_window(hwnd, props.event_tx);
+        Context::register_window(hwnd, props.event_rx_id);
         Ok(hwnd)
     }
 }
@@ -185,7 +194,7 @@ where
 {
     pub fn build(self, event_rx: &EventReceiver) -> Result<Window> {
         let (tx, rx) = tokio::sync::oneshot::channel::<Result<HWND>>();
-        let props = BuilderProps::new(self, event_rx.tx.clone());
+        let props = BuilderProps::new(self, event_rx.id);
         UiThread::send_task(move || {
             tx.send(create_window(props)).ok();
         });
@@ -198,7 +207,7 @@ where
 
     pub async fn build_async(self, event_rx: &EventReceiver) -> Result<Window> {
         let (tx, rx) = tokio::sync::oneshot::channel::<Result<HWND>>();
-        let props = BuilderProps::new(self, event_rx.tx.clone());
+        let props = BuilderProps::new(self, event_rx.id);
         UiThread::send_task(move || {
             tx.send(create_window(props)).ok();
         });

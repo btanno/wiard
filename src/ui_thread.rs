@@ -69,7 +69,7 @@ impl Thread {
                                 }
                             });
                             if let Err(e) = ret {
-                                Context::close_all_windows();
+                                Context::shutdown();
                                 std::panic::resume_unwind(e);
                             }
                         }
@@ -77,13 +77,14 @@ impl Thread {
                             TranslateMessage(&msg);
                             DispatchMessageW(&msg);
                             if let Some(e) = procedure::get_unwind() {
-                                Context::close_all_windows();
+                                Context::shutdown();
                                 std::panic::resume_unwind(e);
                             }
                         }
                     }
                 };
                 CoUninitialize();
+                Context::shutdown();
                 ret
             })
             .unwrap();

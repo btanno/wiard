@@ -10,7 +10,7 @@ fn main() -> anyhow::Result<()> {
             break;
         };
         match event {
-            wiard::Event::Closed => break,
+            wiard::Event::Closed => println!("closed window"),
             _ => {}
         }
     }
