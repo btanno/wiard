@@ -7,10 +7,14 @@ edition = "2021"
 serde = ["dep:serde"]
 
 [dependencies]
+anyhow = { version = "1.0.75", features = ["backtrace"] }
+env_logger = "0.10.0"
+log = "0.4.20"
 num = { version = "0.4", features = ["serde"] }
 raw-window-handle = "0.6"
 serde = { version = "1", features = ["derive"], optional = true }
 thiserror = "1"
+tokio = { version = "1", features = ["sync"] }
 
 [dependencies.windows]
 version = "0.51"
@@ -24,7 +28,9 @@ features = [
     "Win32_UI_Shell_Common",
     "Win32_UI_WindowsAndMessaging",
     "Win32_Storage_FileSystem",
-    "Win32_System_WindowsProgramming",
+    "Win32_System_Com",
+    "Win32_System_Threading",
     "Win32_System_LibraryLoader",
+    "Win32_System_WindowsProgramming",
     "Win32_Globalization",
 ]

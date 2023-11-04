@@ -56,49 +56,6 @@ pub type ScreenPosition<T> = Position<T, ScreenCoord>;
 pub type LogicalSize<T> = Size<T, LogicalCoord>;
 pub type PhysicalSize<T> = Size<T, PhysicalCoord>;
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub struct Logical<T>(T, T);
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub struct Physical<T>(T, T);
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub struct Screen<T>(T, T);
-
-impl<T> From<Logical<T>> for LogicalPosition<T> {
-    #[inline]
-    fn from(value: Logical<T>) -> Self {
-        Self::new(value.0, value.1)
-    }
-}
-
-impl<T> From<Physical<T>> for PhysicalPosition<T> {
-    #[inline]
-    fn from(value: Physical<T>) -> Self {
-        Self::new(value.0, value.1)
-    }
-}
-
-impl<T> From<Screen<T>> for ScreenPosition<T> {
-    #[inline]
-    fn from(value: Screen<T>) -> Self {
-        Self::new(value.0, value.1)
-    }
-}
-
-impl<T> From<Logical<T>> for LogicalSize<T> {
-    #[inline]
-    fn from(value: Logical<T>) -> Self {
-        Self::new(value.0, value.1)
-    }
-}
-
-impl<T> From<Physical<T>> for PhysicalSize<T> {
-    #[inline]
-    fn from(value: Physical<T>) -> Self {
-        Self::new(value.0, value.1)
-    }
-}
 
 pub const DEFAULT_DPI: u32 = 96;
 
@@ -144,7 +101,7 @@ impl<T> ToLogical<T> for PhysicalPosition<T>
 where
     T: num::Num + num::NumCast + Copy,
 {
-    type Output<U> = PhysicalPosition<U>;
+    type Output<U> = LogicalPosition<U>;
 
     #[inline]
     fn to_logical(&self, dpi: T) -> Self::Output<T> {
@@ -168,7 +125,7 @@ impl<T> ToLogical<T> for PhysicalSize<T>
 where
     T: num::Num + num::NumCast + Copy,
 {
-    type Output<U> = PhysicalSize<U>;
+    type Output<U> = LogicalSize<U>;
 
     #[inline]
     fn to_logical(&self, dpi: T) -> Self::Output<T> {
@@ -183,7 +140,7 @@ impl<T> ToPhysical<T> for LogicalPosition<T>
 where
     T: num::Num + num::NumCast + Copy,
 {
-    type Output<U> = LogicalPosition<U>;
+    type Output<U> = PhysicalPosition<U>;
 
     #[inline]
     fn to_physical(&self, dpi: T) -> Self::Output<T> {
@@ -198,7 +155,7 @@ impl<T> ToPhysical<T> for LogicalSize<T>
 where
     T: num::Num + num::NumCast + Copy,
 {
-    type Output<U> = LogicalSize<U>;
+    type Output<U> = PhysicalSize<U>;
 
     #[inline]
     fn to_physical(&self, dpi: T) -> Self::Output<T> {

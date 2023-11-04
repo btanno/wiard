@@ -5,6 +5,8 @@ pub enum Error {
     Api(#[from] windows::core::Error),
     #[error(transparent)]
     Io(#[from] std::io::Error),
+    #[error("UiThreadClosed")]
+    UiThreadClosed,
 }
 
 impl Error {
