@@ -38,7 +38,7 @@ impl Context {
     pub fn register_window(hwnd: HWND, event_rx_id: u64) {
         let ctx = get_context();
         let event_tx = {
-            let mut event_txs = ctx.event_txs.lock().unwrap();
+            let event_txs = ctx.event_txs.lock().unwrap();
             event_txs.get(&event_rx_id).unwrap().clone()
         };
         let mut window_map = ctx.window_map.lock().unwrap();

@@ -36,6 +36,12 @@ pub(crate) type Sender<T> = tokio::sync::mpsc::UnboundedSender<T>;
 
 pub type RecvEvent = (Event, Window);
 
+trait Build {
+    type Window;
+
+    fn build<Sz>(props: BuilderProps<Sz>) -> Result<Self::Window>;
+}
+
 fn gen_id() -> u64 {
     static ID: AtomicU64 = AtomicU64::new(0);
     ID.fetch_add(1, atomic::Ordering::SeqCst)
@@ -72,17 +78,50 @@ impl EventReceiver {
     }
 }
 
-pub struct WindowBuilder<Title = &'static str, Sz = LogicalSize<u32>> {
+pub struct AsyncEventReceiver {
+    id: u64,
+    rx: Receiver<RecvEvent>,
+}
+
+impl AsyncEventReceiver {
+    #[inline]
+    pub fn new() -> Self {
+        let id = gen_id();
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+        Context::register_event_tx(id, tx);
+        Self { id, rx }
+    }
+
+    #[inline]
+    pub async fn recv(&mut self) -> Option<RecvEvent> {
+        self.rx.recv().await
+    }
+
+    #[inline]
+    pub fn try_recv(&mut self) -> Result<Option<RecvEvent>> {
+        use tokio::sync::mpsc::error::TryRecvError;
+
+        match self.rx.try_recv() {
+            Ok(ret) => Ok(Some(ret)),
+            Err(TryRecvError::Empty) => Ok(None),
+            Err(TryRecvError::Disconnected) => Err(Error::UiThreadClosed),
+        }
+    }
+}
+
+pub struct WindowBuilder<'a, Rx, Title = &'static str, Sz = LogicalSize<u32>> {
+    event_rx: &'a Rx,
     title: Title,
     inner_size: Sz,
     visibility: bool,
 }
 
-impl WindowBuilder {
+impl<'a, Rx> WindowBuilder<'a, Rx> {
     #[inline]
-    pub fn new() -> Self {
+    pub fn new(event_rx: &'a Rx) -> Self {
         UiThread::init();
         Self {
+            event_rx,
             title: "",
             inner_size: LogicalSize::new(1024, 768),
             visibility: true,
@@ -90,20 +129,14 @@ impl WindowBuilder {
     }
 }
 
-impl Default for WindowBuilder {
+impl<'a, Rx, Title, Sz> WindowBuilder<'a, Rx, Title, Sz> {
     #[inline]
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl<Title, Sz> WindowBuilder<Title, Sz> {
-    #[inline]
-    pub fn title<T>(self, title: T) -> WindowBuilder<T, Sz>
+    pub fn title<T>(self, title: T) -> WindowBuilder<'a, Rx, T, Sz>
     where
         T: Into<String>,
     {
         WindowBuilder {
+            event_rx: self.event_rx,
             title,
             inner_size: self.inner_size,
             visibility: self.visibility,
@@ -114,8 +147,9 @@ impl<Title, Sz> WindowBuilder<Title, Sz> {
     pub fn inner_size<Coord>(
         self,
         size: Size<u32, Coord>,
-    ) -> WindowBuilder<Title, Size<u32, Coord>> {
+    ) -> WindowBuilder<'a, Rx, Title, Size<u32, Coord>> {
         WindowBuilder {
+            event_rx: self.event_rx,
             title: self.title,
             inner_size: size,
             visibility: self.visibility,
@@ -137,7 +171,7 @@ struct BuilderProps<Sz> {
 }
 
 impl<Sz> BuilderProps<Sz> {
-    fn new<Title>(builder: WindowBuilder<Title, Sz>, event_rx_id: u64) -> Self
+    fn new<Rx, Title>(builder: WindowBuilder<Rx, Title, Sz>, event_rx_id: u64) -> Self
     where
         Title: Into<String>,
         Sz: ToPhysical<u32, Output<u32> = PhysicalSize<u32>> + Send + 'static,
@@ -187,14 +221,15 @@ where
     }
 }
 
-impl<Title, Sz> WindowBuilder<Title, Sz>
+impl<'a, Title, Sz> WindowBuilder<'a, EventReceiver, Title, Sz>
 where
     Title: Into<String>,
     Sz: ToPhysical<u32, Output<u32> = PhysicalSize<u32>> + Send + 'static,
 {
-    pub fn build(self, event_rx: &EventReceiver) -> Result<Window> {
+    pub fn build(self) -> Result<Window> {
         let (tx, rx) = tokio::sync::oneshot::channel::<Result<HWND>>();
-        let props = BuilderProps::new(self, event_rx.id);
+        let event_rx_id = self.event_rx.id;
+        let props = BuilderProps::new(self, event_rx_id);
         UiThread::send_task(move || {
             tx.send(create_window(props)).ok();
         });
@@ -204,10 +239,17 @@ where
         let hwnd = ret?;
         Ok(Window { hwnd })
     }
+}
 
-    pub async fn build_async(self, event_rx: &EventReceiver) -> Result<Window> {
+impl<'a, Title, Sz> WindowBuilder<'a, AsyncEventReceiver, Title, Sz>
+where
+    Title: Into<String>,
+    Sz: ToPhysical<u32, Output<u32> = PhysicalSize<u32>> + Send + 'static,
+{
+    pub async fn build(self) -> Result<AsyncWindow> {
         let (tx, rx) = tokio::sync::oneshot::channel::<Result<HWND>>();
-        let props = BuilderProps::new(self, event_rx.id);
+        let event_rx_id = self.event_rx.id;
+        let props = BuilderProps::new(self, event_rx_id);
         UiThread::send_task(move || {
             tx.send(create_window(props)).ok();
         });
@@ -215,7 +257,32 @@ where
             return Err(Error::UiThreadClosed);
         };
         let hwnd = ret?;
-        Ok(Window { hwnd })
+        Ok(AsyncWindow { hwnd })
+    }
+}
+
+impl<'a, Title, Sz> std::future::IntoFuture for WindowBuilder<'a, AsyncEventReceiver, Title, Sz>
+where
+    Title: Into<String>,
+    Sz: ToPhysical<u32, Output<u32> = PhysicalSize<u32>> + Send + 'static,
+{
+    type Output = Result<AsyncWindow>;
+    type IntoFuture = std::pin::Pin<Box<dyn std::future::Future<Output = Self::Output>>>;
+
+    fn into_future(self) -> Self::IntoFuture {
+        let (tx, rx) = tokio::sync::oneshot::channel::<Result<HWND>>();
+        let event_rx_id = self.event_rx.id;
+        let props = BuilderProps::new(self, event_rx_id);
+        UiThread::send_task(move || {
+            tx.send(create_window(props)).ok();
+        });
+        Box::pin(async move {
+            let Ok(ret) = rx.await else {
+                return Err(Error::UiThreadClosed);
+            };
+            let hwnd = ret?;
+            Ok(AsyncWindow { hwnd })
+        })
     }
 }
 
@@ -229,8 +296,8 @@ impl Window {
     }
 
     #[inline]
-    pub fn builder() -> WindowBuilder {
-        WindowBuilder::new()
+    pub fn builder<T>(event_rx: &T) -> WindowBuilder<T> {
+        WindowBuilder::new(event_rx)
     }
 
     #[inline]
@@ -246,5 +313,20 @@ impl Window {
             .ok();
         });
         rx.blocking_recv().ok()
+    }
+}
+
+pub struct AsyncWindow {
+    hwnd: HWND,
+}
+
+impl AsyncWindow {
+    pub(crate) fn from_isize(hwnd: isize) -> Self {
+        Self { hwnd: HWND(hwnd) }
+    }
+
+    #[inline]
+    pub fn builder(event_rx: &AsyncEventReceiver) -> WindowBuilder<AsyncEventReceiver> {
+        WindowBuilder::new(event_rx)
     }
 }

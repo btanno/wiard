@@ -34,3 +34,7 @@ features = [
     "Win32_System_WindowsProgramming",
     "Win32_Globalization",
 ]
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full"] }
+
