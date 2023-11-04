@@ -35,12 +35,7 @@ type Receiver<T> = tokio::sync::mpsc::UnboundedReceiver<T>;
 pub(crate) type Sender<T> = tokio::sync::mpsc::UnboundedSender<T>;
 
 pub type RecvEvent = (Event, Window);
-
-trait Build {
-    type Window;
-
-    fn build<Sz>(props: BuilderProps<Sz>) -> Result<Self::Window>;
-}
+pub type AsyncRecvEvent = (Event, AsyncWindow);
 
 fn gen_id() -> u64 {
     static ID: AtomicU64 = AtomicU64::new(0);
@@ -93,16 +88,17 @@ impl AsyncEventReceiver {
     }
 
     #[inline]
-    pub async fn recv(&mut self) -> Option<RecvEvent> {
-        self.rx.recv().await
+    pub async fn recv(&mut self) -> Option<AsyncRecvEvent> {
+        let ret = self.rx.recv().await?;
+        Some((ret.0, AsyncWindow { hwnd: ret.1.hwnd }))
     }
 
     #[inline]
-    pub fn try_recv(&mut self) -> Result<Option<RecvEvent>> {
+    pub fn try_recv(&mut self) -> Result<Option<AsyncRecvEvent>> {
         use tokio::sync::mpsc::error::TryRecvError;
 
         match self.rx.try_recv() {
-            Ok(ret) => Ok(Some(ret)),
+            Ok(ret) => Ok(Some((ret.0, AsyncWindow { hwnd: ret.1.hwnd }))),
             Err(TryRecvError::Empty) => Ok(None),
             Err(TryRecvError::Disconnected) => Err(Error::UiThreadClosed),
         }
@@ -321,12 +317,23 @@ pub struct AsyncWindow {
 }
 
 impl AsyncWindow {
-    pub(crate) fn from_isize(hwnd: isize) -> Self {
-        Self { hwnd: HWND(hwnd) }
-    }
-
     #[inline]
     pub fn builder(event_rx: &AsyncEventReceiver) -> WindowBuilder<AsyncEventReceiver> {
         WindowBuilder::new(event_rx)
+    }
+
+    #[inline]
+    pub async fn inner_size(&self) -> Option<PhysicalSize<u32>> {
+        let (tx, rx) = tokio::sync::oneshot::channel::<PhysicalSize<u32>>();
+        let hwnd = self.hwnd.clone();
+        UiThread::send_task(move || {
+            let rc = get_client_rect(hwnd);
+            tx.send(PhysicalSize::new(
+                (rc.right - rc.left) as u32,
+                (rc.bottom - rc.top) as u32,
+            ))
+            .ok();
+        });
+        rx.await.ok()
     }
 }

@@ -3,7 +3,6 @@ fn main() -> anyhow::Result<()> {
     let mut event_rx = wiard::EventReceiver::new();
     let _window = wiard::Window::builder(&event_rx)
         .title("wiard hello")
-        .inner_size(wiard::LogicalSize::new(1024, 768))
         .build()?;
     loop {
         let Some((event, _)) = event_rx.recv() else {
