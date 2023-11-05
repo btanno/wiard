@@ -1,5 +1,5 @@
 use crate::*;
-use windows::Win32::{Foundation::WPARAM, UI::Input::KeyboardAndMouse::*};
+use windows::Win32::{Foundation::{WPARAM, LPARAM}, UI::Input::KeyboardAndMouse::*};
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -176,6 +176,15 @@ impl From<WPARAM> for MouseButtons {
 pub struct MouseState {
     pub position: PhysicalPosition<i32>,
     pub buttons: MouseButtons,
+}
+
+impl MouseState {
+    pub(crate) fn from_params(wparam: WPARAM, lparam: LPARAM) -> Self {
+        Self {
+            position: lparam_to_point(lparam),
+            buttons: wparam.into(),
+        }
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]

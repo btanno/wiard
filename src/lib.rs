@@ -16,3 +16,4 @@ pub use ui_thread::UiThread;
 pub use window::*;
 pub use event::Event;
 pub use device::*;
+pub use event::ResizingEdge;

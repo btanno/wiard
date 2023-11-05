@@ -8,10 +8,7 @@ async fn main() -> anyhow::Result<()> {
         let Some((event, _)) = event_rx.recv().await else {
             break;
         };
-        match event {
-            wiard::Event::Closed => println!("closed window"),
-            _ => {}
-        }
+        println!("{event:?}");
     }
     Ok(())
 }

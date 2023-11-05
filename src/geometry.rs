@@ -1,3 +1,5 @@
+use windows::Win32::Foundation::{POINT, SIZE};
+
 pub mod coord {
     #[derive(Clone, Copy, PartialEq, Eq, Debug)]
     pub struct LogicalCoord;
@@ -56,6 +58,39 @@ pub type ScreenPosition<T> = Position<T, ScreenCoord>;
 pub type LogicalSize<T> = Size<T, LogicalCoord>;
 pub type PhysicalSize<T> = Size<T, PhysicalCoord>;
 
+impl From<POINT> for PhysicalPosition<i32> {
+    #[inline]
+    fn from(value: POINT) -> Self {
+        PhysicalPosition::new(value.x, value.y)
+    }
+}
+
+impl From<PhysicalPosition<i32>> for POINT {
+    #[inline]
+    fn from(value: PhysicalPosition<i32>) -> POINT {
+        POINT {
+            x: value.x,
+            y: value.y,
+        }
+    }
+}
+
+impl From<SIZE> for PhysicalSize<u32> {
+    #[inline]
+    fn from(value: SIZE) -> Self {
+        PhysicalSize::new(value.cx as u32, value.cy as u32)
+    }
+}
+
+impl From<PhysicalSize<u32>> for SIZE {
+    #[inline]
+    fn from(value: PhysicalSize<u32>) -> SIZE {
+        SIZE {
+            cx: value.width as i32,
+            cy: value.height as i32,
+        }
+    }
+}
 
 pub const DEFAULT_DPI: u32 = 96;
 
