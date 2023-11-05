@@ -6,12 +6,13 @@ mod window;
 mod procedure;
 pub mod event;
 mod context;
+mod device;
 
-pub use context::*;
+use context::*;
 pub use error::{Error, Result};
 pub use geometry::*;
 use utility::*;
 pub use ui_thread::UiThread;
 pub use window::*;
-use procedure::*;
 pub use event::Event;
+pub use device::*;
