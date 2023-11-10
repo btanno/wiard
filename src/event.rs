@@ -88,25 +88,13 @@ pub struct CharInput {
 }
 
 #[derive(Debug)]
-pub struct ImeUpdateComposition {
-    pub chars: Vec<char>,
-    pub clauses: Vec<ime::Clause>,
-    pub cursor_position: usize,
-}
-
-#[derive(Debug)]
-pub struct ImeEndComposition {
-    pub result: Option<String>,
-}
-
-#[derive(Debug)]
-pub struct ImeBeginCandidateList {
+pub struct ImeBeginComposition {
     position: RefCell<PhysicalPosition<i32>>,
     dpi: i32,
     tx: Option<oneshot::Sender<PhysicalPosition<i32>>>,
 }
 
-impl ImeBeginCandidateList {
+impl ImeBeginComposition {
     pub(crate) fn new(dpi: i32, tx: oneshot::Sender<PhysicalPosition<i32>>) -> Self {
         Self {
             position: RefCell::new(PhysicalPosition::new(0, 0)),
@@ -124,7 +112,7 @@ impl ImeBeginCandidateList {
     }
 }
 
-impl Drop for ImeBeginCandidateList {
+impl Drop for ImeBeginComposition {
     #[inline]
     fn drop(&mut self) {
         self.tx
@@ -133,6 +121,18 @@ impl Drop for ImeBeginCandidateList {
             .send(self.position.borrow().clone())
             .ok();
     }
+}
+
+#[derive(Debug)]
+pub struct ImeUpdateComposition {
+    pub chars: Vec<char>,
+    pub clauses: Vec<ime::Clause>,
+    pub cursor_position: usize,
+}
+
+#[derive(Debug)]
+pub struct ImeEndComposition {
+    pub result: Option<String>,
 }
 
 #[derive(Debug)]
@@ -204,10 +204,10 @@ pub enum Event {
     MouseWheel(MouseWheel),
     KeyInput(KeyInput),
     CharInput(CharInput),
-    ImeBeginComposition,
+    ImeBeginComposition(ImeBeginComposition),
     ImeUpdateComposition(ImeUpdateComposition),
     ImeEndComposition(ImeEndComposition),
-    ImeBeginCandidateList(ImeBeginCandidateList),
+    ImeBeginCandidateList,
     ImeUpdateCandidateList(ImeUpdateCandidateList),
     ImeEndCandidateList,
     Minizmized,

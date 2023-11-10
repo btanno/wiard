@@ -90,7 +90,7 @@ impl Imc {
         Self { hwnd, himc }
     }
 
-    fn set_candidate_window_position(
+    pub fn set_candidate_window_position(
         &self,
         position: PhysicalPosition<i32>,
         enable_exclude_rect: bool,
@@ -266,17 +266,6 @@ impl ITfUIElementSink_Impl for UiElementSink {
         if visibility {
             return Ok(());
         }
-        let dpi = unsafe { GetDpiForWindow(hwnd) as i32 };
-        let (tx, rx) = oneshot::channel();
-        Context::send_event(
-            hwnd,
-            Event::ImeBeginCandidateList(event::ImeBeginCandidateList::new(dpi, tx)),
-        );
-        let Ok(position) = rx.blocking_recv() else {
-            return Ok(());
-        };
-        let imc = Imc::get(hwnd);
-        imc.set_candidate_window_position(position, false);
         Ok(())
     }
 

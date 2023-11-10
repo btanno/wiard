@@ -2,6 +2,7 @@ use crate::*;
 use std::any::Any;
 use std::cell::RefCell;
 use std::path::PathBuf;
+use tokio::sync::oneshot;
 use windows::Win32::{
     Foundation::{HWND, LPARAM, LRESULT, POINT, RECT, SIZE, WPARAM},
     Graphics::Gdi::{BeginPaint, EndPaint, GetUpdateRect, PAINTSTRUCT},
@@ -179,7 +180,13 @@ unsafe fn on_ime_set_context(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> LRES
 }
 
 unsafe fn on_ime_start_composition(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
-    Context::send_event(hwnd, Event::ImeBeginComposition);
+    let dpi = GetDpiForWindow(hwnd) as i32;
+    let (tx, rx) = oneshot::channel::<PhysicalPosition<i32>>();
+    Context::send_event(hwnd, Event::ImeBeginComposition(event::ImeBeginComposition::new(dpi, tx)));
+    if let Ok(position) = rx.blocking_recv() {
+        let imc = ime::Imc::get(hwnd);
+        imc.set_candidate_window_position(position, false);
+    }
     DefWindowProcW(hwnd, WM_IME_STARTCOMPOSITION, wparam, lparam)
 }
 
