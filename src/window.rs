@@ -8,6 +8,7 @@ use windows::Win32::{
     System::LibraryLoader::GetModuleHandleW,
     UI::HiDpi::GetDpiForWindow,
     UI::WindowsAndMessaging::*,
+    UI::Shell::DragAcceptFiles,
 };
 
 const WINDOW_CLASS_NAME: PCWSTR = windows::core::w!("wiard_window_class");
@@ -111,6 +112,7 @@ pub struct WindowBuilder<'a, Rx, Title = &'static str, Sz = LogicalSize<u32>> {
     visibility: bool,
     enable_ime: bool,
     visible_ime_candidate_window: bool,
+    accept_drop_files: bool,
 }
 
 impl<'a, Rx> WindowBuilder<'a, Rx> {
@@ -124,6 +126,7 @@ impl<'a, Rx> WindowBuilder<'a, Rx> {
             visibility: true,
             enable_ime: true,
             visible_ime_candidate_window: true,
+            accept_drop_files: false,
         }
     }
 }
@@ -141,6 +144,7 @@ impl<'a, Rx, Title, Sz> WindowBuilder<'a, Rx, Title, Sz> {
             visibility: self.visibility,
             enable_ime: self.enable_ime,
             visible_ime_candidate_window: self.visible_ime_candidate_window,
+            accept_drop_files: self.accept_drop_files,
         }
     }
 
@@ -156,6 +160,7 @@ impl<'a, Rx, Title, Sz> WindowBuilder<'a, Rx, Title, Sz> {
             visibility: self.visibility,
             enable_ime: self.enable_ime,
             visible_ime_candidate_window: self.visible_ime_candidate_window,
+            accept_drop_files: self.accept_drop_files,
         }
     }
 
@@ -176,6 +181,12 @@ impl<'a, Rx, Title, Sz> WindowBuilder<'a, Rx, Title, Sz> {
         self.visible_ime_candidate_window = visiblity;
         self
     }
+    
+    #[inline]
+    pub fn accept_drop_files(mut self, accept: bool) -> Self {
+        self.accept_drop_files = accept;
+        self
+    }
 }
 
 struct BuilderProps<Sz> {
@@ -184,6 +195,7 @@ struct BuilderProps<Sz> {
     visiblity: bool,
     enable_ime: bool,
     visible_ime_candidate_window: bool,
+    accept_drop_files: bool,
     event_rx_id: u64,
 }
 
@@ -199,6 +211,7 @@ impl<Sz> BuilderProps<Sz> {
             visiblity: builder.visibility,
             enable_ime: builder.enable_ime,
             visible_ime_candidate_window: builder.visible_ime_candidate_window,
+            accept_drop_files: builder.accept_drop_files,
             event_rx_id,
         }
     }
@@ -243,6 +256,7 @@ where
         } else {
             imm_context.disable();
         }
+        DragAcceptFiles(hwnd, props.accept_drop_files);
         let window_props = WindowProps {
             imm_context,
             visible_ime_candidate_window: props.visible_ime_candidate_window,
