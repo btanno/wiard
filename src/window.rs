@@ -1,12 +1,10 @@
 use crate::*;
 use std::sync::atomic::{self, AtomicU64};
+use tokio::sync::oneshot;
 use windows::core::{HSTRING, PCWSTR};
 use windows::Win32::{
-    Foundation::{HINSTANCE, HWND, LPARAM, POINT, RECT, WPARAM},
-    Graphics::Gdi::{
-        GetStockObject, MonitorFromPoint, RedrawWindow, HBRUSH, MONITOR_DEFAULTTOPRIMARY,
-        RDW_INVALIDATE, WHITE_BRUSH,
-    },
+    Foundation::{HINSTANCE, HWND},
+    Graphics::Gdi::{GetStockObject, HBRUSH, WHITE_BRUSH},
     System::LibraryLoader::GetModuleHandleW,
     UI::WindowsAndMessaging::*,
 };
@@ -321,6 +319,50 @@ where
     }
 }
 
+mod methods {
+    use super::*;
+
+    #[inline]
+    pub fn position(hwnd: HWND) -> oneshot::Receiver<PhysicalPosition<i32>> {
+        let (tx, rx) = oneshot::channel::<PhysicalPosition<i32>>();
+        UiThread::send_task(move || {
+            let rc = get_window_rect(hwnd);
+            tx.send(PhysicalPosition::new(rc.left, rc.top)).ok();
+        });
+        rx
+    }
+
+    #[inline]
+    pub fn inner_size(hwnd: HWND) -> oneshot::Receiver<PhysicalSize<u32>> {
+        let (tx, rx) = oneshot::channel::<PhysicalSize<u32>>();
+        UiThread::send_task(move || {
+            let rc = get_client_rect(hwnd);
+            tx.send(PhysicalSize::new(
+                (rc.right - rc.left) as u32,
+                (rc.bottom - rc.top) as u32,
+            ))
+            .ok();
+        });
+        rx
+    }
+
+    #[inline]
+    pub fn enable_ime(hwnd: HWND, enabled: bool) -> oneshot::Receiver<()> {
+        let (tx, rx) = oneshot::channel::<()>();
+        UiThread::send_task(move || {
+            Context::set_window_props(hwnd, |props| {
+                if enabled {
+                    props.imm_context.enable();
+                } else {
+                    props.imm_context.disable();
+                }
+            });
+            tx.send(()).ok();
+        });
+        rx
+    }
+}
+
 pub struct Window {
     hwnd: HWND,
 }
@@ -336,18 +378,20 @@ impl Window {
     }
 
     #[inline]
-    pub fn inner_size(&self) -> Option<PhysicalSize<u32>> {
-        let (tx, rx) = tokio::sync::oneshot::channel::<PhysicalSize<u32>>();
-        let hwnd = self.hwnd.clone();
-        UiThread::send_task(move || {
-            let rc = get_client_rect(hwnd);
-            tx.send(PhysicalSize::new(
-                (rc.right - rc.left) as u32,
-                (rc.bottom - rc.top) as u32,
-            ))
-            .ok();
-        });
+    pub fn position(&self) -> Option<PhysicalPosition<i32>> {
+        let rx = methods::position(self.hwnd);
         rx.blocking_recv().ok()
+    }
+
+    #[inline]
+    pub fn inner_size(&self) -> Option<PhysicalSize<u32>> {
+        let rx = methods::inner_size(self.hwnd);
+        rx.blocking_recv().ok()
+    }
+
+    #[inline]
+    pub fn enable_ime(&self, enabled: bool) {
+        methods::enable_ime(self.hwnd, enabled).blocking_recv().ok();
     }
 }
 
@@ -362,17 +406,79 @@ impl AsyncWindow {
     }
 
     #[inline]
-    pub async fn inner_size(&self) -> Option<PhysicalSize<u32>> {
-        let (tx, rx) = tokio::sync::oneshot::channel::<PhysicalSize<u32>>();
-        let hwnd = self.hwnd.clone();
-        UiThread::send_task(move || {
-            let rc = get_client_rect(hwnd);
-            tx.send(PhysicalSize::new(
-                (rc.right - rc.left) as u32,
-                (rc.bottom - rc.top) as u32,
-            ))
-            .ok();
-        });
+    pub async fn position(&self) -> Option<PhysicalPosition<i32>> {
+        let rx = methods::position(self.hwnd);
         rx.await.ok()
+    }
+
+    #[inline]
+    pub async fn inner_size(&self) -> Option<PhysicalSize<u32>> {
+        let rx = methods::inner_size(self.hwnd);
+        rx.await.ok()
+    }
+
+    #[inline]
+    pub async fn enable_ime(&self, enabled: bool) {
+        methods::enable_ime(self.hwnd, enabled).await.ok();
+    }
+}
+
+impl raw_window_handle::HasWindowHandle for Window {
+    #[inline]
+    fn window_handle(
+        &self,
+    ) -> std::result::Result<raw_window_handle::WindowHandle<'_>, raw_window_handle::HandleError>
+    {
+        Ok(unsafe {
+            raw_window_handle::WindowHandle::borrow_raw(raw_window_handle::RawWindowHandle::Win32(
+                raw_window_handle::Win32WindowHandle::new(self.hwnd.0.try_into().unwrap()),
+            ))
+        })
+    }
+}
+
+impl raw_window_handle::HasWindowHandle for AsyncWindow {
+    #[inline]
+    fn window_handle(
+        &self,
+    ) -> std::result::Result<raw_window_handle::WindowHandle<'_>, raw_window_handle::HandleError>
+    {
+        Ok(unsafe {
+            raw_window_handle::WindowHandle::borrow_raw(raw_window_handle::RawWindowHandle::Win32(
+                raw_window_handle::Win32WindowHandle::new(self.hwnd.0.try_into().unwrap()),
+            ))
+        })
+    }
+}
+
+impl raw_window_handle::HasDisplayHandle for Window {
+    #[inline]
+    fn display_handle(
+        &self,
+    ) -> std::result::Result<raw_window_handle::DisplayHandle<'_>, raw_window_handle::HandleError>
+    {
+        Ok(unsafe {
+            raw_window_handle::DisplayHandle::borrow_raw(
+                raw_window_handle::RawDisplayHandle::Windows(
+                    raw_window_handle::WindowsDisplayHandle::new(),
+                ),
+            )
+        })
+    }
+}
+
+impl raw_window_handle::HasDisplayHandle for AsyncWindow {
+    #[inline]
+    fn display_handle(
+        &self,
+    ) -> std::result::Result<raw_window_handle::DisplayHandle<'_>, raw_window_handle::HandleError>
+    {
+        Ok(unsafe {
+            raw_window_handle::DisplayHandle::borrow_raw(
+                raw_window_handle::RawDisplayHandle::Windows(
+                    raw_window_handle::WindowsDisplayHandle::new(),
+                ),
+            )
+        })
     }
 }
