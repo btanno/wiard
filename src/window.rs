@@ -6,6 +6,7 @@ use windows::Win32::{
     Foundation::{HINSTANCE, HWND},
     Graphics::Gdi::{GetStockObject, HBRUSH, WHITE_BRUSH},
     System::LibraryLoader::GetModuleHandleW,
+    UI::HiDpi::GetDpiForWindow,
     UI::WindowsAndMessaging::*,
 };
 
@@ -347,6 +348,16 @@ mod methods {
     }
 
     #[inline]
+    pub fn dpi(hwnd: HWND) -> oneshot::Receiver<u32> {
+        let (tx, rx) = oneshot::channel::<u32>();
+        UiThread::send_task(move || unsafe {
+            let dpi = GetDpiForWindow(hwnd);
+            tx.send(dpi).ok();
+        });
+        rx
+    }
+
+    #[inline]
     pub fn enable_ime(hwnd: HWND, enabled: bool) -> oneshot::Receiver<()> {
         let (tx, rx) = oneshot::channel::<()>();
         UiThread::send_task(move || {
@@ -360,6 +371,48 @@ mod methods {
             tx.send(()).ok();
         });
         rx
+    }
+
+    #[inline]
+    pub fn set_position<T>(hwnd: HWND, position: T)
+    where
+        T: ToPhysical<i32, Output<i32> = PhysicalPosition<i32>> + Send + 'static,
+    {
+        UiThread::send_task(move || unsafe {
+            let dpi = GetDpiForWindow(hwnd) as i32;
+            let position = position.to_physical(dpi);
+            SetWindowPos(
+                hwnd,
+                None,
+                position.x,
+                position.y,
+                0,
+                0,
+                SWP_NOZORDER | SWP_NOSIZE,
+            )
+            .ok();
+        });
+    }
+
+    #[inline]
+    pub fn set_size<T>(hwnd: HWND, size: T)
+    where
+        T: ToPhysical<u32, Output<u32> = PhysicalSize<u32>> + Send + 'static,
+    {
+        UiThread::send_task(move || unsafe {
+            let dpi = GetDpiForWindow(hwnd);
+            let size = size.to_physical(dpi);
+            SetWindowPos(
+                hwnd,
+                None,
+                0,
+                0,
+                size.width as i32,
+                size.height as i32,
+                SWP_NOZORDER | SWP_NOSIZE,
+            )
+            .ok();
+        });
     }
 }
 
@@ -390,8 +443,35 @@ impl Window {
     }
 
     #[inline]
+    pub fn dpi(&self) -> Option<u32> {
+        let rx = methods::dpi(self.hwnd);
+        rx.blocking_recv().ok()
+    }
+
+    #[inline]
+    pub fn set_position<T>(&self, position: T)
+    where
+        T: ToPhysical<i32, Output<i32> = PhysicalPosition<i32>> + Send + 'static,
+    {
+        methods::set_position(self.hwnd, position);
+    }
+
+    #[inline]
+    pub fn set_size<T>(&self, size: T)
+    where
+        T: ToPhysical<u32, Output<u32> = PhysicalSize<u32>> + Send + 'static,
+    {
+        methods::set_size(self.hwnd, size);
+    }
+
+    #[inline]
     pub fn enable_ime(&self, enabled: bool) {
         methods::enable_ime(self.hwnd, enabled).blocking_recv().ok();
+    }
+
+    #[inline]
+    pub fn is_closed(&self) -> bool {
+        Context::window_is_none(self.hwnd)
     }
 }
 
@@ -418,8 +498,35 @@ impl AsyncWindow {
     }
 
     #[inline]
+    pub async fn dpi(&self) -> Option<u32> {
+        let rx = methods::dpi(self.hwnd);
+        rx.await.ok()
+    }
+
+    #[inline]
+    pub fn set_position<T>(&self, position: T)
+    where
+        T: ToPhysical<i32, Output<i32> = PhysicalPosition<i32>> + Send + 'static,
+    {
+        methods::set_position(self.hwnd, position);
+    }
+
+    #[inline]
+    pub fn set_size<T>(&self, size: T)
+    where
+        T: ToPhysical<u32, Output<u32> = PhysicalSize<u32>> + Send + 'static,
+    {
+        methods::set_size(self.hwnd, size);
+    }
+
+    #[inline]
     pub async fn enable_ime(&self, enabled: bool) {
         methods::enable_ime(self.hwnd, enabled).await.ok();
+    }
+
+    #[inline]
+    pub fn is_closed(&self) -> bool {
+        Context::window_is_none(self.hwnd)
     }
 }
 
