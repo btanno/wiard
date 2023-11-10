@@ -9,6 +9,15 @@ fn main() -> anyhow::Result<()> {
             break;
         };
         match event {
+            wiard::Event::ImeBeginComposition => {
+                println!("ImeBeginComposition");
+            }
+            wiard::Event::ImeUpdateComposition(comp) => {
+                println!("ImeUpdateComposition: {comp:?}");
+            }
+            wiard::Event::ImeEndComposition(comp) => {
+                println!("ImeEndComposition: {comp:?}");
+            }
             wiard::Event::ImeBeginCandidateList(cl) => {
                 println!("ImeBeginCandidateList");
                 cl.set_position(wiard::LogicalPosition::new(100, 100));
