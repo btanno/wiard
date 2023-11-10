@@ -110,6 +110,8 @@ pub struct WindowBuilder<'a, Rx, Title = &'static str, Sz = LogicalSize<u32>> {
     title: Title,
     inner_size: Sz,
     visibility: bool,
+    enable_ime: bool,
+    visible_ime_candidate_window: bool,
 }
 
 impl<'a, Rx> WindowBuilder<'a, Rx> {
@@ -121,6 +123,8 @@ impl<'a, Rx> WindowBuilder<'a, Rx> {
             title: "",
             inner_size: LogicalSize::new(1024, 768),
             visibility: true,
+            enable_ime: true,
+            visible_ime_candidate_window: true,
         }
     }
 }
@@ -136,6 +140,8 @@ impl<'a, Rx, Title, Sz> WindowBuilder<'a, Rx, Title, Sz> {
             title,
             inner_size: self.inner_size,
             visibility: self.visibility,
+            enable_ime: self.enable_ime,
+            visible_ime_candidate_window: self.visible_ime_candidate_window,
         }
     }
 
@@ -149,6 +155,8 @@ impl<'a, Rx, Title, Sz> WindowBuilder<'a, Rx, Title, Sz> {
             title: self.title,
             inner_size: size,
             visibility: self.visibility,
+            enable_ime: self.enable_ime,
+            visible_ime_candidate_window: self.visible_ime_candidate_window,
         }
     }
 
@@ -157,12 +165,26 @@ impl<'a, Rx, Title, Sz> WindowBuilder<'a, Rx, Title, Sz> {
         self.visibility = visibility;
         self
     }
+
+    #[inline]
+    pub fn enable_ime(mut self, enable: bool) -> Self {
+        self.enable_ime = enable;
+        self
+    }
+
+    #[inline]
+    pub fn visible_ime_candidate_window(mut self, visiblity: bool) -> Self {
+        self.visible_ime_candidate_window = visiblity;
+        self
+    }
 }
 
 struct BuilderProps<Sz> {
     title: HSTRING,
     inner_size: Sz,
     visiblity: bool,
+    enable_ime: bool,
+    visible_ime_candidate_window: bool,
     event_rx_id: u64,
 }
 
@@ -176,9 +198,16 @@ impl<Sz> BuilderProps<Sz> {
             title: HSTRING::from(builder.title.into()),
             inner_size: builder.inner_size,
             visiblity: builder.visibility,
+            enable_ime: builder.enable_ime,
+            visible_ime_candidate_window: builder.visible_ime_candidate_window,
             event_rx_id,
         }
     }
+}
+
+pub(crate) struct WindowProps {
+    pub imm_context: ime::ImmContext,
+    pub visible_ime_candidate_window: bool,
 }
 
 fn create_window<Sz>(props: BuilderProps<Sz>) -> Result<HWND>
@@ -209,10 +238,20 @@ where
         if hwnd == HWND(0) {
             return Err(Error::from_win32());
         }
+        let imm_context = ime::ImmContext::new(hwnd);
+        if props.enable_ime {
+            imm_context.enable();
+        } else {
+            imm_context.disable();
+        }
+        let window_props = WindowProps {
+            imm_context,
+            visible_ime_candidate_window: props.visible_ime_candidate_window,
+        };
+        Context::register_window(hwnd, window_props, props.event_rx_id);
         if props.visiblity {
             ShowWindow(hwnd, SW_SHOW);
         }
-        Context::register_window(hwnd, props.event_rx_id);
         Ok(hwnd)
     }
 }

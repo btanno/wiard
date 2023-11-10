@@ -7,6 +7,7 @@ mod procedure;
 pub mod event;
 mod context;
 mod device;
+pub mod ime;
 
 use context::*;
 pub use error::{Error, Result};

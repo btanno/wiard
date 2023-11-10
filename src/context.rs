@@ -5,11 +5,12 @@ use windows::Win32::Foundation::HWND;
 
 pub(crate) struct Object {
     pub event_tx: crate::window::Sender<RecvEvent>,
+    pub props: WindowProps,
 }
 
-struct ContextImpl {
-    window_map: Mutex<HashMap<isize, Object>>,
-    event_txs: Mutex<HashMap<u64, crate::window::Sender<RecvEvent>>>,
+pub(crate) struct ContextImpl {
+    pub window_map: Mutex<HashMap<isize, Object>>,
+    pub event_txs: Mutex<HashMap<u64, crate::window::Sender<RecvEvent>>>,
 }
 
 impl ContextImpl {
@@ -30,19 +31,25 @@ fn get_context() -> &'static ContextImpl {
 pub(crate) struct Context;
 
 impl Context {
+    pub fn init() -> Result<()> {
+        window::register_class();
+        ime::init_text_service();
+        Ok(())
+    }
+
     pub fn is_empty() -> bool {
         let window_map = get_context().window_map.lock().unwrap();
         window_map.is_empty()
     }
 
-    pub fn register_window(hwnd: HWND, event_rx_id: u64) {
+    pub fn register_window(hwnd: HWND, props: WindowProps, event_rx_id: u64) {
         let ctx = get_context();
         let event_tx = {
             let event_txs = ctx.event_txs.lock().unwrap();
             event_txs.get(&event_rx_id).unwrap().clone()
         };
         let mut window_map = ctx.window_map.lock().unwrap();
-        window_map.insert(hwnd.0, Object { event_tx });
+        window_map.insert(hwnd.0, Object { props, event_tx });
     }
 
     pub fn remove_window(hwnd: HWND) -> Option<Object> {
@@ -75,6 +82,24 @@ impl Context {
             .ok();
     }
 
+    pub fn get_window_props<F, T>(hwnd: HWND, f: F) -> T
+    where
+        F: FnOnce(&WindowProps) -> T,
+    {
+        let window_map = get_context().window_map.lock().unwrap();
+        let object = window_map.get(&hwnd.0).unwrap();
+        f(&object.props)
+    }
+
+    pub fn set_window_props<F>(hwnd: HWND, f: F)
+    where
+        F: FnOnce(&mut WindowProps),
+    {
+        let mut window_map = get_context().window_map.lock().unwrap();
+        let object = window_map.get_mut(&hwnd.0).unwrap();
+        f(&mut object.props)
+    }
+
     pub fn register_event_tx(id: u64, tx: crate::window::Sender<RecvEvent>) {
         let mut event_txs = get_context().event_txs.lock().unwrap();
         event_txs.insert(id, tx);
@@ -82,6 +107,7 @@ impl Context {
 
     pub fn shutdown() {
         Self::close_all_windows();
+        ime::shutdown_text_service();
         let mut event_txs = get_context().event_txs.lock().unwrap();
         event_txs.clear();
     }

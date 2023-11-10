@@ -1,5 +1,7 @@
 use crate::*;
+use std::cell::RefCell;
 use std::path::PathBuf;
+use tokio::sync::oneshot;
 use windows::Win32::{Foundation::HWND, UI::WindowsAndMessaging::DestroyWindow};
 
 #[derive(Debug)]
@@ -86,6 +88,60 @@ pub struct CharInput {
 }
 
 #[derive(Debug)]
+pub struct ImeUpdateComposition {
+    pub chars: Vec<char>,
+    pub clauses: Vec<ime::Clause>,
+    pub cursor_position: usize,
+}
+
+#[derive(Debug)]
+pub struct ImeEndComposition {
+    pub result: Option<String>,
+}
+
+#[derive(Debug)]
+pub struct ImeBeginCandidateList {
+    position: RefCell<PhysicalPosition<i32>>,
+    dpi: i32,
+    tx: Option<oneshot::Sender<PhysicalPosition<i32>>>,
+}
+
+impl ImeBeginCandidateList {
+    pub(crate) fn new(dpi: i32, tx: oneshot::Sender<PhysicalPosition<i32>>) -> Self {
+        Self {
+            position: RefCell::new(PhysicalPosition::new(0, 0)),
+            dpi,
+            tx: Some(tx),
+        }
+    }
+
+    #[inline]
+    pub fn set_position(
+        &self,
+        position: impl ToPhysical<i32, Output<i32> = PhysicalPosition<i32>>,
+    ) {
+        *self.position.borrow_mut() = position.to_physical(self.dpi);
+    }
+}
+
+impl Drop for ImeBeginCandidateList {
+    #[inline]
+    fn drop(&mut self) {
+        self.tx
+            .take()
+            .unwrap()
+            .send(self.position.borrow().clone())
+            .ok();
+    }
+}
+
+#[derive(Debug)]
+pub struct ImeUpdateCandidateList {
+    pub selection: usize,
+    pub items: Vec<String>,
+}
+
+#[derive(Debug)]
 pub struct Maximized {
     pub size: PhysicalSize<u32>,
 }
@@ -148,6 +204,12 @@ pub enum Event {
     MouseWheel(MouseWheel),
     KeyInput(KeyInput),
     CharInput(CharInput),
+    ImeBeginComposition,
+    ImeUpdateComposition(ImeUpdateComposition),
+    ImeEndComposition(ImeEndComposition),
+    ImeBeginCandidateList(ImeBeginCandidateList),
+    ImeUpdateCandidateList(ImeUpdateCandidateList),
+    ImeEndCandidateList,
     Minizmized,
     Maximized(Maximized),
     Restored(Restored),

@@ -7,6 +7,7 @@ use windows::Win32::{
     Graphics::Gdi::{BeginPaint, EndPaint, GetUpdateRect, PAINTSTRUCT},
     UI::Controls::WM_MOUSELEAVE,
     UI::HiDpi::{EnableNonClientDpiScaling, GetDpiForWindow},
+    UI::Input::Ime::{ISC_SHOWUIALLCANDIDATEWINDOW, ISC_SHOWUICOMPOSITIONWINDOW},
     UI::Input::KeyboardAndMouse::{
         ReleaseCapture, SetCapture, TrackMouseEvent, TME_LEAVE, TRACKMOUSEEVENT, VIRTUAL_KEY,
     },
@@ -162,6 +163,51 @@ unsafe fn on_char(hwnd: HWND, wparam: WPARAM, _lparam: LPARAM) -> LRESULT {
         Context::send_event(hwnd, Event::CharInput(event::CharInput { c }));
     }
     LRESULT(0)
+}
+
+unsafe fn on_ime_set_context(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+    let lparam = {
+        let mut value = lparam.0 as u32;
+        value &= !ISC_SHOWUICOMPOSITIONWINDOW;
+        let candidate = Context::get_window_props(hwnd, |props| props.visible_ime_candidate_window);
+        if !candidate {
+            value &= !ISC_SHOWUIALLCANDIDATEWINDOW;
+        }
+        LPARAM(value as isize)
+    };
+    DefWindowProcW(hwnd, WM_IME_SETCONTEXT, wparam, lparam)
+}
+
+unsafe fn on_ime_start_composition(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+    Context::send_event(hwnd, Event::ImeBeginComposition);
+    DefWindowProcW(hwnd, WM_IME_STARTCOMPOSITION, wparam, lparam)
+}
+
+unsafe fn on_ime_composition(hwnd: HWND, _wparam: WPARAM, _lparam: LPARAM) -> LRESULT {
+    let imc = ime::Imc::get(hwnd);
+    let Some(s) = imc.get_composition_string() else {
+        return LRESULT(0);
+    };
+    let Some(clauses) = imc.get_composition_clauses() else {
+        return LRESULT(0);
+    };
+    let composition = event::ImeUpdateComposition {
+        chars: s.chars().collect(),
+        clauses,
+        cursor_position: imc.get_cursor_position(),
+    };
+    Context::send_event(hwnd, Event::ImeUpdateComposition(composition));
+    LRESULT(0)
+}
+
+unsafe fn on_ime_end_composition(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+    let imc = ime::Imc::get(hwnd);
+    let result = imc.get_composition_result();
+    Context::send_event(
+        hwnd,
+        Event::ImeEndComposition(event::ImeEndComposition { result }),
+    );
+    DefWindowProcW(hwnd, WM_IME_ENDCOMPOSITION, wparam, lparam)
 }
 
 unsafe fn on_sizing(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
@@ -411,6 +457,10 @@ pub(crate) extern "system" fn window_proc(
             WM_KEYDOWN => on_key_input(hwnd, KeyState::Pressed, wparam, lparam),
             WM_KEYUP => on_key_input(hwnd, KeyState::Released, wparam, lparam),
             WM_CHAR => on_char(hwnd, wparam, lparam),
+            WM_IME_SETCONTEXT => on_ime_set_context(hwnd, wparam, lparam),
+            WM_IME_STARTCOMPOSITION => on_ime_start_composition(hwnd, wparam, lparam),
+            WM_IME_COMPOSITION => on_ime_composition(hwnd, wparam, lparam),
+            WM_IME_ENDCOMPOSITION => on_ime_end_composition(hwnd, wparam, lparam),
             WM_SIZING => on_sizing(hwnd, wparam, lparam),
             WM_SIZE => on_size(hwnd, wparam, lparam),
             WM_WINDOWPOSCHANGED => on_window_pos_changed(hwnd, wparam, lparam),
