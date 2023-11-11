@@ -71,16 +71,16 @@ impl EventReceiver {
     }
 
     #[inline]
-    pub fn try_recv(&mut self) -> Result<Option<RecvEvent>> {
-        use tokio::sync::mpsc::error::TryRecvError;
+    pub fn try_recv(&mut self) -> TryRecvResult<RecvEvent> {
+        use tokio::sync::mpsc;
 
         match self.rx.try_recv() {
             Ok(ret) => match ret {
-                RecvEventOrPanic::Event(re) => Ok(Some(re)),
+                RecvEventOrPanic::Event(re) => Ok(re),
                 RecvEventOrPanic::Panic(e) => std::panic::resume_unwind(e),
             },
-            Err(TryRecvError::Empty) => Ok(None),
-            Err(TryRecvError::Disconnected) => Err(Error::UiThreadClosed),
+            Err(mpsc::error::TryRecvError::Empty) => Err(TryRecvError::Empty),
+            Err(mpsc::error::TryRecvError::Disconnected) => Err(TryRecvError::Disconnected),
         }
     }
 }
@@ -109,8 +109,8 @@ impl AsyncEventReceiver {
     }
 
     #[inline]
-    pub fn try_recv(&mut self) -> Result<Option<AsyncRecvEvent>> {
-        use tokio::sync::mpsc::error::TryRecvError;
+    pub fn try_recv(&mut self) -> TryRecvResult<AsyncRecvEvent> {
+        use tokio::sync::mpsc;
 
         match self.rx.try_recv() {
             Ok(ret) => {
@@ -118,10 +118,10 @@ impl AsyncEventReceiver {
                     RecvEventOrPanic::Event(re) => re,
                     RecvEventOrPanic::Panic(e) => std::panic::resume_unwind(e),
                 };
-                Ok(Some((ret.0, AsyncWindow { hwnd: ret.1.hwnd })))
+                Ok((ret.0, AsyncWindow { hwnd: ret.1.hwnd }))
             }
-            Err(TryRecvError::Empty) => Ok(None),
-            Err(TryRecvError::Disconnected) => Err(Error::UiThreadClosed),
+            Err(mpsc::error::TryRecvError::Empty) => Err(TryRecvError::Empty),
+            Err(mpsc::error::TryRecvError::Disconnected) => Err(TryRecvError::Disconnected),
         }
     }
 }

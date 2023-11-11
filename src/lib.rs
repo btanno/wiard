@@ -10,7 +10,7 @@ mod device;
 pub mod ime;
 
 use context::*;
-pub use error::{Error, Result};
+pub use error::*;
 pub use geometry::*;
 use utility::*;
 pub use ui_thread::UiThread;
