@@ -49,11 +49,6 @@ impl Thread {
         let th = std::thread::Builder::new()
             .name("wiard UiThread".into())
             .spawn(move || unsafe {
-                unsafe fn shutdown() {
-                    Context::shutdown();
-                    CoUninitialize();
-                }
-
                 CoInitializeEx(None, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE).unwrap();
                 IsGUIThread(true);
                 Context::init().unwrap();
@@ -63,6 +58,7 @@ impl Thread {
                 let ret = loop {
                     let ret = GetMessageW(&mut msg, HWND(0), 0, 0);
                     if ret == BOOL(0) || ret == BOOL(-1) {
+                        Context::shutdown();
                         break msg.wParam.0 as u32;
                     }
                     match msg.message {
@@ -73,21 +69,21 @@ impl Thread {
                                 }
                             });
                             if let Err(e) = ret {
-                                shutdown();
-                                std::panic::resume_unwind(e);
+                                Context::send_panic(e);
+                                break 1;
                             }
                         }
                         _ => {
                             TranslateMessage(&msg);
                             DispatchMessageW(&msg);
                             if let Some(e) = procedure::get_unwind() {
-                                shutdown();
-                                std::panic::resume_unwind(e);
+                                Context::send_panic(e);
+                                break 1;
                             }
                         }
                     }
                 };
-                shutdown();
+                CoUninitialize();
                 ret
             })
             .unwrap();

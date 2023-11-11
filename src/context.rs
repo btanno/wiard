@@ -1,16 +1,21 @@
 use crate::*;
+use std::any::Any;
 use std::collections::HashMap;
-use std::sync::{Mutex, OnceLock};
+use std::sync::{
+    atomic::{self, AtomicU64},
+    Mutex, OnceLock,
+};
 use windows::Win32::Foundation::HWND;
 
 pub(crate) struct Object {
-    pub event_tx: crate::window::Sender<RecvEvent>,
+    pub event_tx: crate::window::Sender<RecvEventOrPanic>,
     pub props: WindowProps,
 }
 
 pub(crate) struct ContextImpl {
     pub window_map: Mutex<HashMap<isize, Object>>,
-    pub event_txs: Mutex<HashMap<u64, crate::window::Sender<RecvEvent>>>,
+    pub event_txs: Mutex<HashMap<u64, crate::window::Sender<RecvEventOrPanic>>>,
+    panic_receiver: AtomicU64,
 }
 
 impl ContextImpl {
@@ -18,6 +23,7 @@ impl ContextImpl {
         Self {
             window_map: Mutex::new(HashMap::new()),
             event_txs: Mutex::new(HashMap::new()),
+            panic_receiver: AtomicU64::new(0),
         }
     }
 }
@@ -61,7 +67,10 @@ impl Context {
         let window_map = get_context().window_map.lock().unwrap();
         for (hwnd, obj) in window_map.iter() {
             obj.event_tx
-                .send((Event::Closed, Window::from_isize(*hwnd)))
+                .send(RecvEventOrPanic::Event((
+                    Event::Closed,
+                    Window::from_isize(*hwnd),
+                )))
                 .ok();
         }
     }
@@ -78,7 +87,7 @@ impl Context {
         };
         object
             .event_tx
-            .send((event, Window::from_isize(hwnd.0)))
+            .send(RecvEventOrPanic::Event((event, Window::from_isize(hwnd.0))))
             .ok();
     }
 
@@ -100,9 +109,20 @@ impl Context {
         f(&mut object.props)
     }
 
-    pub fn register_event_tx(id: u64, tx: crate::window::Sender<RecvEvent>) {
+    pub fn register_event_tx(id: u64, tx: crate::window::Sender<RecvEventOrPanic>) {
         let mut event_txs = get_context().event_txs.lock().unwrap();
         event_txs.insert(id, tx);
+    }
+
+    pub fn send_panic(e: Box<dyn Any + Send>) {
+        Self::close_all_windows();
+        ime::shutdown_text_service();
+        let ctx = get_context();
+        let mut event_txs = ctx.event_txs.lock().unwrap();
+        if let Some(tx) = event_txs.remove(&ctx.panic_receiver.load(atomic::Ordering::SeqCst)) {
+            tx.send(RecvEventOrPanic::Panic(e)).ok();
+        }
+        event_txs.clear();
     }
 
     pub fn shutdown() {

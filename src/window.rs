@@ -1,4 +1,5 @@
 use crate::*;
+use std::any::Any;
 use std::sync::atomic::{self, AtomicU64};
 use tokio::sync::oneshot;
 use windows::core::{HSTRING, PCWSTR};
@@ -7,8 +8,8 @@ use windows::Win32::{
     Graphics::Gdi::{GetStockObject, HBRUSH, WHITE_BRUSH},
     System::LibraryLoader::GetModuleHandleW,
     UI::HiDpi::GetDpiForWindow,
-    UI::WindowsAndMessaging::*,
     UI::Shell::DragAcceptFiles,
+    UI::WindowsAndMessaging::*,
 };
 
 const WINDOW_CLASS_NAME: PCWSTR = windows::core::w!("wiard_window_class");
@@ -34,6 +35,11 @@ pub(crate) fn register_class() {
 type Receiver<T> = tokio::sync::mpsc::UnboundedReceiver<T>;
 pub(crate) type Sender<T> = tokio::sync::mpsc::UnboundedSender<T>;
 
+pub(crate) enum RecvEventOrPanic {
+    Event(RecvEvent),
+    Panic(Box<dyn Any + Send>),
+}
+
 pub type RecvEvent = (Event, Window);
 pub type AsyncRecvEvent = (Event, AsyncWindow);
 
@@ -44,7 +50,7 @@ fn gen_id() -> u64 {
 
 pub struct EventReceiver {
     id: u64,
-    rx: Receiver<RecvEvent>,
+    rx: Receiver<RecvEventOrPanic>,
 }
 
 impl EventReceiver {
@@ -58,7 +64,10 @@ impl EventReceiver {
 
     #[inline]
     pub fn recv(&mut self) -> Option<RecvEvent> {
-        self.rx.blocking_recv()
+        match self.rx.blocking_recv()? {
+            RecvEventOrPanic::Event(re) => Some(re),
+            RecvEventOrPanic::Panic(e) => std::panic::resume_unwind(e),
+        }
     }
 
     #[inline]
@@ -66,7 +75,10 @@ impl EventReceiver {
         use tokio::sync::mpsc::error::TryRecvError;
 
         match self.rx.try_recv() {
-            Ok(ret) => Ok(Some(ret)),
+            Ok(ret) => match ret {
+                RecvEventOrPanic::Event(re) => Ok(Some(re)),
+                RecvEventOrPanic::Panic(e) => std::panic::resume_unwind(e),
+            },
             Err(TryRecvError::Empty) => Ok(None),
             Err(TryRecvError::Disconnected) => Err(Error::UiThreadClosed),
         }
@@ -75,7 +87,7 @@ impl EventReceiver {
 
 pub struct AsyncEventReceiver {
     id: u64,
-    rx: Receiver<RecvEvent>,
+    rx: Receiver<RecvEventOrPanic>,
 }
 
 impl AsyncEventReceiver {
@@ -89,7 +101,10 @@ impl AsyncEventReceiver {
 
     #[inline]
     pub async fn recv(&mut self) -> Option<AsyncRecvEvent> {
-        let ret = self.rx.recv().await?;
+        let ret = match self.rx.recv().await? {
+            RecvEventOrPanic::Event(re) => re,
+            RecvEventOrPanic::Panic(e) => std::panic::resume_unwind(e),
+        };
         Some((ret.0, AsyncWindow { hwnd: ret.1.hwnd }))
     }
 
@@ -98,7 +113,13 @@ impl AsyncEventReceiver {
         use tokio::sync::mpsc::error::TryRecvError;
 
         match self.rx.try_recv() {
-            Ok(ret) => Ok(Some((ret.0, AsyncWindow { hwnd: ret.1.hwnd }))),
+            Ok(ret) => {
+                let ret = match ret {
+                    RecvEventOrPanic::Event(re) => re,
+                    RecvEventOrPanic::Panic(e) => std::panic::resume_unwind(e),
+                };
+                Ok(Some((ret.0, AsyncWindow { hwnd: ret.1.hwnd })))
+            }
             Err(TryRecvError::Empty) => Ok(None),
             Err(TryRecvError::Disconnected) => Err(Error::UiThreadClosed),
         }
@@ -181,7 +202,7 @@ impl<'a, Rx, Title, Sz> WindowBuilder<'a, Rx, Title, Sz> {
         self.visible_ime_candidate_window = visiblity;
         self
     }
-    
+
     #[inline]
     pub fn accept_drop_files(mut self, accept: bool) -> Self {
         self.accept_drop_files = accept;
