@@ -136,6 +136,7 @@ pub struct WindowBuilder<'a, Rx, Title = &'static str, Sz = LogicalSize<u32>> {
     enable_ime: bool,
     visible_ime_candidate_window: bool,
     accept_drop_files: bool,
+    auto_close: bool,
 }
 
 impl<'a, Rx> WindowBuilder<'a, Rx> {
@@ -150,6 +151,7 @@ impl<'a, Rx> WindowBuilder<'a, Rx> {
             enable_ime: true,
             visible_ime_candidate_window: true,
             accept_drop_files: false,
+            auto_close: true,
         }
     }
 }
@@ -168,6 +170,7 @@ impl<'a, Rx, Title, Sz> WindowBuilder<'a, Rx, Title, Sz> {
             enable_ime: self.enable_ime,
             visible_ime_candidate_window: self.visible_ime_candidate_window,
             accept_drop_files: self.accept_drop_files,
+            auto_close: self.auto_close,
         }
     }
 
@@ -184,6 +187,7 @@ impl<'a, Rx, Title, Sz> WindowBuilder<'a, Rx, Title, Sz> {
             enable_ime: self.enable_ime,
             visible_ime_candidate_window: self.visible_ime_candidate_window,
             accept_drop_files: self.accept_drop_files,
+            auto_close: self.auto_close,
         }
     }
 
@@ -210,6 +214,12 @@ impl<'a, Rx, Title, Sz> WindowBuilder<'a, Rx, Title, Sz> {
         self.accept_drop_files = accept;
         self
     }
+    
+    #[inline]
+    pub fn auto_close(mut self, flag: bool) -> Self {
+        self.auto_close = flag;
+        self
+    }
 }
 
 struct BuilderProps<Sz> {
@@ -219,6 +229,7 @@ struct BuilderProps<Sz> {
     enable_ime: bool,
     visible_ime_candidate_window: bool,
     accept_drop_files: bool,
+    auto_close: bool,
     event_rx_id: u64,
 }
 
@@ -235,6 +246,7 @@ impl<Sz> BuilderProps<Sz> {
             enable_ime: builder.enable_ime,
             visible_ime_candidate_window: builder.visible_ime_candidate_window,
             accept_drop_files: builder.accept_drop_files,
+            auto_close: builder.auto_close,
             event_rx_id,
         }
     }
@@ -243,6 +255,7 @@ impl<Sz> BuilderProps<Sz> {
 pub(crate) struct WindowProps {
     pub imm_context: ime::ImmContext,
     pub visible_ime_candidate_window: bool,
+    pub auto_close: bool,
 }
 
 fn create_window<Sz>(props: BuilderProps<Sz>) -> Result<HWND>
@@ -283,6 +296,7 @@ where
         let window_props = WindowProps {
             imm_context,
             visible_ime_candidate_window: props.visible_ime_candidate_window,
+            auto_close: props.auto_close,
         };
         Context::register_window(hwnd, window_props, props.event_rx_id);
         if props.visiblity {

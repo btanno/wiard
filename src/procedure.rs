@@ -182,7 +182,10 @@ unsafe fn on_ime_set_context(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> LRES
 unsafe fn on_ime_start_composition(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     let dpi = GetDpiForWindow(hwnd) as i32;
     let (tx, rx) = oneshot::channel::<PhysicalPosition<i32>>();
-    Context::send_event(hwnd, Event::ImeBeginComposition(event::ImeBeginComposition::new(dpi, tx)));
+    Context::send_event(
+        hwnd,
+        Event::ImeBeginComposition(event::ImeBeginComposition::new(dpi, tx)),
+    );
     if let Ok(position) = rx.blocking_recv() {
         let imc = ime::Imc::get(hwnd);
         imc.set_candidate_window_position(position, false);
@@ -371,7 +374,12 @@ unsafe fn on_nc_create(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
 }
 
 unsafe fn on_close(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
-    DefWindowProcW(hwnd, WM_CLOSE, wparam, lparam)
+    let auto_close = Context::get_window_props(hwnd, |props| props.auto_close);
+    if auto_close {
+        return DefWindowProcW(hwnd, WM_CLOSE, wparam, lparam);
+    }
+    Context::send_event(hwnd, Event::CloseRequest(event::CloseRequest::new(hwnd)));
+    LRESULT(0)
 }
 
 unsafe fn on_destroy(hwnd: HWND) -> LRESULT {
