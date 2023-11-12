@@ -8,6 +8,7 @@ pub mod event;
 mod context;
 mod device;
 pub mod ime;
+pub mod style;
 
 use context::*;
 pub use error::*;
@@ -18,6 +19,7 @@ pub use window::*;
 pub use event::Event;
 pub use device::*;
 pub use event::ResizingEdge;
+pub use style::*;
 
 pub use context::set_panic_receiver;
 

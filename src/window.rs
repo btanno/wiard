@@ -4,7 +4,7 @@ use std::sync::atomic::{self, AtomicU64};
 use tokio::sync::oneshot;
 use windows::core::{HSTRING, PCWSTR};
 use windows::Win32::{
-    Foundation::{HINSTANCE, HWND},
+    Foundation::{HINSTANCE, HWND, LPARAM, WPARAM},
     Graphics::Gdi::{GetStockObject, HBRUSH, WHITE_BRUSH},
     System::LibraryLoader::GetModuleHandleW,
     UI::HiDpi::GetDpiForWindow,
@@ -146,10 +146,11 @@ impl IsReceiver for AsyncEventReceiver {
     }
 }
 
-pub struct WindowBuilder<'a, Rx, Title = &'static str, Sz = LogicalSize<u32>> {
+pub struct WindowBuilder<'a, Rx, Title = &'static str, Sz = LogicalSize<u32>, Sty = WindowStyle> {
     event_rx: &'a Rx,
     title: Title,
     inner_size: Sz,
+    style: Sty,
     visibility: bool,
     enable_ime: bool,
     visible_ime_candidate_window: bool,
@@ -165,6 +166,7 @@ impl<'a, Rx> WindowBuilder<'a, Rx> {
             event_rx,
             title: "",
             inner_size: LogicalSize::new(1024, 768),
+            style: WindowStyle::default(),
             visibility: true,
             enable_ime: true,
             visible_ime_candidate_window: true,
@@ -174,9 +176,9 @@ impl<'a, Rx> WindowBuilder<'a, Rx> {
     }
 }
 
-impl<'a, Rx, Title, Sz> WindowBuilder<'a, Rx, Title, Sz> {
+impl<'a, Rx, Title, Sz, Sty> WindowBuilder<'a, Rx, Title, Sz, Sty> {
     #[inline]
-    pub fn title<T>(self, title: T) -> WindowBuilder<'a, Rx, T, Sz>
+    pub fn title<T>(self, title: T) -> WindowBuilder<'a, Rx, T, Sz, Sty>
     where
         T: Into<String>,
     {
@@ -184,6 +186,7 @@ impl<'a, Rx, Title, Sz> WindowBuilder<'a, Rx, Title, Sz> {
             event_rx: self.event_rx,
             title,
             inner_size: self.inner_size,
+            style: self.style,
             visibility: self.visibility,
             enable_ime: self.enable_ime,
             visible_ime_candidate_window: self.visible_ime_candidate_window,
@@ -196,11 +199,30 @@ impl<'a, Rx, Title, Sz> WindowBuilder<'a, Rx, Title, Sz> {
     pub fn inner_size<Coord>(
         self,
         size: Size<u32, Coord>,
-    ) -> WindowBuilder<'a, Rx, Title, Size<u32, Coord>> {
+    ) -> WindowBuilder<'a, Rx, Title, Size<u32, Coord>, Sty> {
         WindowBuilder {
             event_rx: self.event_rx,
             title: self.title,
             inner_size: size,
+            style: self.style,
+            visibility: self.visibility,
+            enable_ime: self.enable_ime,
+            visible_ime_candidate_window: self.visible_ime_candidate_window,
+            accept_drop_files: self.accept_drop_files,
+            auto_close: self.auto_close,
+        }
+    }
+
+    #[inline]
+    pub fn style<T>(self, style: T) -> WindowBuilder<'a, Rx, Title, Sz, T>
+    where
+        T: Style,
+    {
+        WindowBuilder {
+            event_rx: self.event_rx,
+            title: self.title,
+            inner_size: self.inner_size,
+            style,
             visibility: self.visibility,
             enable_ime: self.enable_ime,
             visible_ime_candidate_window: self.visible_ime_candidate_window,
@@ -232,7 +254,7 @@ impl<'a, Rx, Title, Sz> WindowBuilder<'a, Rx, Title, Sz> {
         self.accept_drop_files = accept;
         self
     }
-    
+
     #[inline]
     pub fn auto_close(mut self, flag: bool) -> Self {
         self.auto_close = flag;
@@ -243,6 +265,8 @@ impl<'a, Rx, Title, Sz> WindowBuilder<'a, Rx, Title, Sz> {
 struct BuilderProps<Sz> {
     title: HSTRING,
     inner_size: Sz,
+    style: WINDOW_STYLE,
+    ex_style: WINDOW_EX_STYLE,
     visiblity: bool,
     enable_ime: bool,
     visible_ime_candidate_window: bool,
@@ -252,14 +276,17 @@ struct BuilderProps<Sz> {
 }
 
 impl<Sz> BuilderProps<Sz> {
-    fn new<Rx, Title>(builder: WindowBuilder<Rx, Title, Sz>, event_rx_id: u64) -> Self
+    fn new<Rx, Title, Sty>(builder: WindowBuilder<Rx, Title, Sz, Sty>, event_rx_id: u64) -> Self
     where
         Title: Into<String>,
         Sz: ToPhysical<u32, Output<u32> = PhysicalSize<u32>> + Send + 'static,
+        Sty: Style,
     {
         Self {
             title: HSTRING::from(builder.title.into()),
             inner_size: builder.inner_size,
+            style: builder.style.style(),
+            ex_style: builder.style.ex_style(),
             visiblity: builder.visibility,
             enable_ime: builder.enable_ime,
             visible_ime_candidate_window: builder.visible_ime_candidate_window,
@@ -283,15 +310,13 @@ where
     unsafe {
         let dpi = get_dpi_from_point(ScreenPosition::new(0, 0));
         let size = props.inner_size.to_physical(dpi);
-        let style = WS_OVERLAPPEDWINDOW;
-        let ex_style = WINDOW_EX_STYLE(0);
-        let rc = adjust_window_rect_ex_for_dpi(size, style, false, ex_style, dpi);
+        let rc = adjust_window_rect_ex_for_dpi(size, props.style, false, props.ex_style, dpi);
         let hinstance = GetModuleHandleW(None).unwrap();
         let hwnd = CreateWindowExW(
-            ex_style,
+            props.ex_style,
             WINDOW_CLASS_NAME,
             &props.title,
-            style,
+            props.style,
             0,
             0,
             rc.right - rc.left,
@@ -324,10 +349,11 @@ where
     }
 }
 
-impl<'a, Title, Sz> WindowBuilder<'a, EventReceiver, Title, Sz>
+impl<'a, Title, Sz, Sty> WindowBuilder<'a, EventReceiver, Title, Sz, Sty>
 where
     Title: Into<String>,
     Sz: ToPhysical<u32, Output<u32> = PhysicalSize<u32>> + Send + 'static,
+    Sty: Style,
 {
     pub fn build(self) -> Result<Window> {
         let (tx, rx) = tokio::sync::oneshot::channel::<Result<HWND>>();
@@ -344,10 +370,11 @@ where
     }
 }
 
-impl<'a, Title, Sz> WindowBuilder<'a, AsyncEventReceiver, Title, Sz>
+impl<'a, Title, Sz, Sty> WindowBuilder<'a, AsyncEventReceiver, Title, Sz, Sty>
 where
     Title: Into<String>,
     Sz: ToPhysical<u32, Output<u32> = PhysicalSize<u32>> + Send + 'static,
+    Sty: Style,
 {
     pub async fn build(self) -> Result<AsyncWindow> {
         let (tx, rx) = tokio::sync::oneshot::channel::<Result<HWND>>();
@@ -483,6 +510,13 @@ mod methods {
             .ok();
         });
     }
+
+    #[inline]
+    pub fn close(hwnd: HWND) {
+        UiThread::send_task(move || unsafe {
+            PostMessageW(hwnd, WM_CLOSE, WPARAM(0), LPARAM(0)).ok();
+        });
+    }
 }
 
 pub struct Window {
@@ -542,6 +576,11 @@ impl Window {
     pub fn is_closed(&self) -> bool {
         Context::window_is_none(self.hwnd)
     }
+
+    #[inline]
+    pub fn close(&self) {
+        methods::close(self.hwnd);
+    }
 }
 
 pub struct AsyncWindow {
@@ -596,6 +635,11 @@ impl AsyncWindow {
     #[inline]
     pub fn is_closed(&self) -> bool {
         Context::window_is_none(self.hwnd)
+    }
+
+    #[inline]
+    pub fn close(&self) {
+        methods::close(self.hwnd);
     }
 }
 
