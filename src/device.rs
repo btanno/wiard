@@ -1,5 +1,8 @@
 use crate::*;
-use windows::Win32::{Foundation::{WPARAM, LPARAM}, UI::Input::KeyboardAndMouse::*};
+use windows::Win32::{
+    Foundation::{LPARAM, WPARAM},
+    UI::Input::KeyboardAndMouse::*,
+};
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -594,7 +597,7 @@ mod tests {
         assert!(btns.contains(MouseButton::Middle));
         assert!(!btns.contains(MouseButton::Ex(0)));
     }
-    
+
     #[test]
     fn array_to_mouse_buttons() {
         let a = [MouseButton::Left, MouseButton::Right];

@@ -203,7 +203,7 @@ where
 
 impl<T> ToPhysical<T> for PhysicalPosition<T>
 where
-    T: Copy
+    T: Copy,
 {
     type Output<U> = PhysicalPosition<U>;
 
@@ -215,7 +215,7 @@ where
 
 impl<T> ToPhysical<T> for PhysicalSize<T>
 where
-    T: Copy
+    T: Copy,
 {
     type Output<U> = PhysicalSize<U>;
 

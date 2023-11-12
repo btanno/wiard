@@ -15,7 +15,7 @@ fn main() -> anyhow::Result<()> {
                     window.close();
                 }
             }
-            _ => {},
+            _ => {}
         }
     }
     Ok(())

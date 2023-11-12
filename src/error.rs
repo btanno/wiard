@@ -26,4 +26,3 @@ pub enum TryRecvError {
 }
 
 pub type TryRecvResult<T> = ::core::result::Result<T, TryRecvError>;
-

@@ -115,11 +115,7 @@ impl ImeBeginComposition {
 impl Drop for ImeBeginComposition {
     #[inline]
     fn drop(&mut self) {
-        self.tx
-            .take()
-            .unwrap()
-            .send(*self.position.borrow())
-            .ok();
+        self.tx.take().unwrap().send(*self.position.borrow()).ok();
     }
 }
 

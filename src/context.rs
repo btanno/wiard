@@ -53,7 +53,8 @@ impl Context {
         let event_tx = {
             let event_txs = ctx.event_txs.lock().unwrap();
             if event_txs.is_empty() {
-                ctx.panic_receiver.store(event_rx_id, atomic::Ordering::SeqCst);
+                ctx.panic_receiver
+                    .store(event_rx_id, atomic::Ordering::SeqCst);
             }
             event_txs.get(&event_rx_id).unwrap().clone()
         };
@@ -124,7 +125,7 @@ impl Context {
         let mut event_txs = ctx.event_txs.lock().unwrap();
         if let Some(tx) = event_txs.remove(&ctx.panic_receiver.load(atomic::Ordering::SeqCst)) {
             tx.send(RecvEventOrPanic::Panic(e)).ok();
-        } 
+        }
         event_txs.clear();
     }
 
