@@ -118,7 +118,7 @@ impl Drop for ImeBeginComposition {
         self.tx
             .take()
             .unwrap()
-            .send(self.position.borrow().clone())
+            .send(*self.position.borrow())
             .ok();
     }
 }

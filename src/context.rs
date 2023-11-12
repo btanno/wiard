@@ -31,7 +31,7 @@ impl ContextImpl {
 static CONTEXT: OnceLock<ContextImpl> = OnceLock::new();
 
 fn get_context() -> &'static ContextImpl {
-    CONTEXT.get_or_init(|| ContextImpl::new())
+    CONTEXT.get_or_init(ContextImpl::new)
 }
 
 pub(crate) struct Context;

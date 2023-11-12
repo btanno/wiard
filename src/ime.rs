@@ -1,12 +1,10 @@
 use crate::*;
 use std::cell::{Cell, OnceCell, RefCell};
-use tokio::sync::oneshot;
 use windows::core::ComInterface;
 use windows::Win32::{
     Foundation::{BOOL, HWND, POINT, RECT},
     Globalization::*,
     System::Com::*,
-    UI::HiDpi::GetDpiForWindow,
     UI::Input::Ime::*,
     UI::Input::KeyboardAndMouse::GetFocus,
     UI::TextServices::*,
@@ -68,7 +66,7 @@ pub struct Clause {
 impl PartialOrd for Clause {
     #[inline]
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.range.start.partial_cmp(&other.range.start)
+        Some(self.cmp(other))
     }
 }
 
@@ -147,7 +145,7 @@ impl Imc {
                 buf.as_ptr() as *const u16,
                 buf.len() / std::mem::size_of::<u16>(),
             );
-            String::from_utf16_lossy(&buf)
+            String::from_utf16_lossy(buf)
         };
         (!s.is_empty()).then_some(s)
     }
@@ -189,7 +187,7 @@ impl Imc {
                 buf.len() / std::mem::size_of::<u16>(),
             )
         };
-        let s = String::from_utf16_lossy(&buf);
+        let s = String::from_utf16_lossy(buf);
         (!s.is_empty()).then_some(s)
     }
 
@@ -246,6 +244,7 @@ fn ui_element_mgr() -> ITfUIElementMgr {
 struct UiElementSink;
 
 impl UiElementSink {
+    #[allow(clippy::new_ret_no_self)]
     fn new() -> ITfUIElementSink {
         Self.into()
     }

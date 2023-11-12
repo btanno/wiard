@@ -55,6 +55,7 @@ pub struct EventReceiver {
 
 impl EventReceiver {
     #[inline]
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         let id = gen_id();
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
@@ -92,6 +93,7 @@ pub struct AsyncEventReceiver {
 
 impl AsyncEventReceiver {
     #[inline]
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         let id = gen_id();
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
