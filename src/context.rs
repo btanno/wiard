@@ -52,6 +52,9 @@ impl Context {
         let ctx = get_context();
         let event_tx = {
             let event_txs = ctx.event_txs.lock().unwrap();
+            if event_txs.is_empty() {
+                ctx.panic_receiver.store(event_rx_id, atomic::Ordering::SeqCst);
+            }
             event_txs.get(&event_rx_id).unwrap().clone()
         };
         let mut window_map = ctx.window_map.lock().unwrap();
@@ -121,7 +124,7 @@ impl Context {
         let mut event_txs = ctx.event_txs.lock().unwrap();
         if let Some(tx) = event_txs.remove(&ctx.panic_receiver.load(atomic::Ordering::SeqCst)) {
             tx.send(RecvEventOrPanic::Panic(e)).ok();
-        }
+        } 
         event_txs.clear();
     }
 
@@ -131,4 +134,10 @@ impl Context {
         let mut event_txs = get_context().event_txs.lock().unwrap();
         event_txs.clear();
     }
+}
+
+pub fn set_panic_receiver(rx: &impl IsReceiver) {
+    get_context()
+        .panic_receiver
+        .store(rx.id(), atomic::Ordering::SeqCst);
 }

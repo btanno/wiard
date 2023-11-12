@@ -18,3 +18,6 @@ pub use window::*;
 pub use event::Event;
 pub use device::*;
 pub use event::ResizingEdge;
+
+pub use context::set_panic_receiver;
+

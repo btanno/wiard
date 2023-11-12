@@ -48,6 +48,10 @@ fn gen_id() -> u64 {
     ID.fetch_add(1, atomic::Ordering::SeqCst)
 }
 
+pub trait IsReceiver {
+    fn id(&self) -> u64;
+}
+
 pub struct EventReceiver {
     id: u64,
     rx: Receiver<RecvEventOrPanic>,
@@ -83,6 +87,13 @@ impl EventReceiver {
             Err(mpsc::error::TryRecvError::Empty) => Err(TryRecvError::Empty),
             Err(mpsc::error::TryRecvError::Disconnected) => Err(TryRecvError::Disconnected),
         }
+    }
+}
+
+impl IsReceiver for EventReceiver {
+    #[inline]
+    fn id(&self) -> u64 {
+        self.id
     }
 }
 
@@ -125,6 +136,13 @@ impl AsyncEventReceiver {
             Err(mpsc::error::TryRecvError::Empty) => Err(TryRecvError::Empty),
             Err(mpsc::error::TryRecvError::Disconnected) => Err(TryRecvError::Disconnected),
         }
+    }
+}
+
+impl IsReceiver for AsyncEventReceiver {
+    #[inline]
+    fn id(&self) -> u64 {
+        self.id
     }
 }
 
