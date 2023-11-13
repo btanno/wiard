@@ -42,3 +42,10 @@ features = [
 [dev-dependencies]
 tokio = { version = "1", features = ["full"] }
 
+[dev-dependencies.windows]
+version = "0.51"
+features = [
+    "Win32_Graphics_Direct2D",
+    "Win32_Graphics_Direct2D_Common",
+    "Win32_Graphics_Dxgi_Common",
+]

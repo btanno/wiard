@@ -8,6 +8,7 @@ use std::sync::{
 use windows::Win32::Foundation::HWND;
 
 pub(crate) struct Object {
+    pub kind: WindowKind,
     pub event_tx: crate::window::Sender<RecvEventOrPanic>,
     pub props: WindowProps,
 }
@@ -48,7 +49,7 @@ impl Context {
         window_map.is_empty()
     }
 
-    pub fn register_window(hwnd: HWND, props: WindowProps, event_rx_id: u64) {
+    pub fn register_window(kind: WindowKind, props: WindowProps, event_rx_id: u64) {
         let ctx = get_context();
         let event_tx = {
             let event_txs = ctx.event_txs.lock().unwrap();
@@ -59,7 +60,15 @@ impl Context {
             event_txs.get(&event_rx_id).unwrap().clone()
         };
         let mut window_map = ctx.window_map.lock().unwrap();
-        window_map.insert(hwnd.0, Object { props, event_tx });
+        let hwnd = kind.hwnd();
+        window_map.insert(
+            hwnd.0,
+            Object {
+                kind,
+                props,
+                event_tx,
+            },
+        );
     }
 
     pub fn remove_window(hwnd: HWND) -> Option<Object> {
@@ -69,12 +78,9 @@ impl Context {
 
     pub fn close_all_windows() {
         let window_map = get_context().window_map.lock().unwrap();
-        for (hwnd, obj) in window_map.iter() {
+        for (_, obj) in window_map.iter() {
             obj.event_tx
-                .send(RecvEventOrPanic::Event((
-                    Event::Closed,
-                    Window::from_isize(*hwnd),
-                )))
+                .send(RecvEventOrPanic::Event((Event::Closed, obj.kind.clone())))
                 .ok();
         }
     }
@@ -91,7 +97,7 @@ impl Context {
         };
         object
             .event_tx
-            .send(RecvEventOrPanic::Event((event, Window::from_isize(hwnd.0))))
+            .send(RecvEventOrPanic::Event((event, object.kind.clone())))
             .ok();
     }
 
