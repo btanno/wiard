@@ -5,12 +5,16 @@ use std::sync::{
     atomic::{self, AtomicU64},
     Mutex, OnceLock,
 };
-use windows::Win32::Foundation::HWND;
+use windows::Win32::{
+    Foundation::{HWND, WPARAM, LPARAM},
+    UI::WindowsAndMessaging::{PostMessageW, WM_CLOSE},
+};
 
 pub(crate) struct Object {
     pub kind: WindowKind,
     pub event_tx: crate::window::Sender<RecvEventOrPanic>,
     pub props: WindowProps,
+    pub children: Vec<HWND>,
 }
 
 pub(crate) struct ContextImpl {
@@ -61,19 +65,34 @@ impl Context {
         };
         let mut window_map = ctx.window_map.lock().unwrap();
         let hwnd = kind.hwnd();
+        let parent = props.parent.clone();
         window_map.insert(
             hwnd.0,
             Object {
                 kind,
                 props,
                 event_tx,
+                children: vec![],
             },
         );
+        if let Some(parent) = parent {
+            if let Some(parent_obj) = window_map.get_mut(&parent.0) {
+                parent_obj.children.push(hwnd);
+            }
+        }
     }
 
     pub fn remove_window(hwnd: HWND) -> Option<Object> {
         let mut window_map = get_context().window_map.lock().unwrap();
-        window_map.remove(&hwnd.0)
+        let obj = window_map.remove(&hwnd.0);
+        if let Some(obj) = obj.as_ref() {
+            for child in &obj.children {
+                unsafe {
+                    PostMessageW(*child, WM_CLOSE, WPARAM(0), LPARAM(0)).ok();
+                }
+            }
+        }
+        obj
     }
 
     pub fn close_all_windows() {

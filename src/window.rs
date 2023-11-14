@@ -209,6 +209,7 @@ pub struct WindowBuilder<'a, Rx, Title = &'static str, Sz = LogicalSize<u32>, St
     auto_close: bool,
     icon: Option<Icon>,
     cursor: Cursor,
+    parent: Option<HWND>,
 }
 
 impl<'a, Rx> WindowBuilder<'a, Rx> {
@@ -218,7 +219,7 @@ impl<'a, Rx> WindowBuilder<'a, Rx> {
         Self {
             event_rx,
             title: "",
-            position: PhysicalPosition::new(0, 0),
+            position: PhysicalPosition::new(CW_USEDEFAULT, CW_USEDEFAULT),
             inner_size: LogicalSize::new(1024, 768),
             style: WindowStyle::default(),
             visibility: true,
@@ -228,6 +229,7 @@ impl<'a, Rx> WindowBuilder<'a, Rx> {
             auto_close: true,
             icon: None,
             cursor: Cursor::default(),
+            parent: None,
         }
     }
 }
@@ -251,6 +253,7 @@ impl<'a, Rx, Title, Sz, Sty> WindowBuilder<'a, Rx, Title, Sz, Sty> {
             auto_close: self.auto_close,
             icon: self.icon,
             cursor: self.cursor,
+            parent: self.parent,
         }
     }
 
@@ -278,6 +281,7 @@ impl<'a, Rx, Title, Sz, Sty> WindowBuilder<'a, Rx, Title, Sz, Sty> {
             auto_close: self.auto_close,
             icon: self.icon,
             cursor: self.cursor,
+            parent: self.parent,
         }
     }
 
@@ -299,6 +303,7 @@ impl<'a, Rx, Title, Sz, Sty> WindowBuilder<'a, Rx, Title, Sz, Sty> {
             auto_close: self.auto_close,
             icon: self.icon,
             cursor: self.cursor,
+            parent: self.parent,
         }
     }
 
@@ -343,6 +348,12 @@ impl<'a, Rx, Title, Sz, Sty> WindowBuilder<'a, Rx, Title, Sz, Sty> {
         self.cursor = cursor;
         self
     }
+
+    #[inline]
+    pub fn parent(mut self, parent: &impl IsWindow) -> Self {
+        self.parent = Some(parent.hwnd());
+        self
+    }
 }
 
 struct BuilderProps<Pos, Sz> {
@@ -360,6 +371,7 @@ struct BuilderProps<Pos, Sz> {
     cursor: Cursor,
     event_rx_id: u64,
     parent: Option<HWND>,
+    parent_inner: Option<HWND>,
 }
 
 impl<Sz> BuilderProps<PhysicalPosition<i32>, Sz> {
@@ -384,7 +396,8 @@ impl<Sz> BuilderProps<PhysicalPosition<i32>, Sz> {
             icon: builder.icon,
             cursor: builder.cursor,
             event_rx_id: builder.event_rx.id(),
-            parent: None,
+            parent: builder.parent,
+            parent_inner: None,
         }
     }
 }
@@ -409,7 +422,8 @@ impl<Pos, Sz> BuilderProps<Pos, Sz> {
             icon: None,
             cursor: builder.cursor,
             event_rx_id: builder.event_rx.id(),
-            parent: Some(builder.parent),
+            parent: None,
+            parent_inner: Some(builder.parent_inner),
         }
     }
 }
@@ -419,6 +433,7 @@ pub(crate) struct WindowProps {
     pub visible_ime_candidate_window: bool,
     pub auto_close: bool,
     pub cursor: Cursor,
+    pub parent: Option<HWND>,
 }
 
 fn create_window<Pos, Sz>(
@@ -444,7 +459,7 @@ where
             position.y,
             rc.right - rc.left,
             rc.bottom - rc.top,
-            props.parent.as_ref(),
+            props.parent_inner.as_ref(),
             None,
             hinstance,
             None,
@@ -484,6 +499,7 @@ where
             visible_ime_candidate_window: props.visible_ime_candidate_window,
             auto_close: props.auto_close,
             cursor: props.cursor,
+            parent: props.parent,
         };
         Context::register_window(f(hwnd), window_props, props.event_rx_id);
         if props.visiblity {
@@ -984,7 +1000,7 @@ impl raw_window_handle::HasDisplayHandle for AsyncWindow {
 
 pub struct InnerWindowBuilder<'a, Rx, Pos = (), Sz = ()> {
     event_rx: &'a Rx,
-    parent: HWND,
+    parent_inner: HWND,
     position: Pos,
     size: Sz,
     visibility: bool,
@@ -1002,7 +1018,7 @@ impl<'a, Rx> InnerWindowBuilder<'a, Rx> {
     {
         Self {
             event_rx,
-            parent: parent.hwnd(),
+            parent_inner: parent.hwnd(),
             position: (),
             size: (),
             visibility: true,
@@ -1023,7 +1039,7 @@ impl<'a, Rx, Pos, Sz> InnerWindowBuilder<'a, Rx, Pos, Sz> {
     {
         InnerWindowBuilder {
             event_rx: self.event_rx,
-            parent: self.parent,
+            parent_inner: self.parent_inner,
             position,
             size: self.size,
             visibility: self.visibility,
@@ -1041,7 +1057,7 @@ impl<'a, Rx, Pos, Sz> InnerWindowBuilder<'a, Rx, Pos, Sz> {
     {
         InnerWindowBuilder {
             event_rx: self.event_rx,
-            parent: self.parent,
+            parent_inner: self.parent_inner,
             position: self.position,
             size,
             visibility: self.visibility,
