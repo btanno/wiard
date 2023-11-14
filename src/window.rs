@@ -464,7 +464,7 @@ where
                     hwnd,
                     WM_SETICON,
                     WPARAM(ICON_BIG as usize),
-                    LPARAM(big.0 as isize),
+                    LPARAM(big.0),
                 )
                 .ok();
             }
@@ -473,7 +473,7 @@ where
                     hwnd,
                     WM_SETICON,
                     WPARAM(ICON_SMALL as usize),
-                    LPARAM(small.0 as isize),
+                    LPARAM(small.0),
                 )
                 .ok();
             }

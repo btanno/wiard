@@ -5,11 +5,11 @@ pub mod event;
 mod geometry;
 pub mod ime;
 mod procedure;
+mod resource;
 pub mod style;
 mod ui_thread;
 mod utility;
 mod window;
-mod resource;
 
 use context::*;
 pub use device::*;
@@ -17,10 +17,10 @@ pub use error::*;
 pub use event::Event;
 pub use event::ResizingEdge;
 pub use geometry::*;
+pub use resource::*;
 pub use style::*;
 pub use ui_thread::UiThread;
 use utility::*;
 pub use window::*;
-pub use resource::*;
 
 pub use context::set_panic_receiver;
