@@ -9,6 +9,7 @@ pub mod style;
 mod ui_thread;
 mod utility;
 mod window;
+mod resource;
 
 use context::*;
 pub use device::*;
@@ -20,5 +21,6 @@ pub use style::*;
 pub use ui_thread::UiThread;
 use utility::*;
 pub use window::*;
+pub use resource::*;
 
 pub use context::set_panic_receiver;

@@ -258,7 +258,8 @@ impl ITfUIElementSink_Impl for UiElementSink {
             return Ok(());
         }
         let visibility =
-            Context::get_window_props(hwnd, |props| props.visible_ime_candidate_window);
+            Context::get_window_props(hwnd, |props| props.visible_ime_candidate_window)
+                .unwrap_or(true);
         unsafe {
             *show.as_mut().unwrap() = visibility.into();
         }
@@ -295,7 +296,8 @@ impl ITfUIElementSink_Impl for UiElementSink {
             return Ok(());
         }
         let visibility =
-            Context::get_window_props(hwnd, |props| props.visible_ime_candidate_window);
+            Context::get_window_props(hwnd, |props| props.visible_ime_candidate_window)
+                .unwrap_or(true);
         if !visibility {
             Context::send_event(hwnd, Event::ImeEndCandidateList);
         }

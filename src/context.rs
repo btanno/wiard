@@ -101,13 +101,13 @@ impl Context {
             .ok();
     }
 
-    pub fn get_window_props<F, T>(hwnd: HWND, f: F) -> T
+    pub fn get_window_props<F, T>(hwnd: HWND, f: F) -> Option<T>
     where
         F: FnOnce(&WindowProps) -> T,
     {
         let window_map = get_context().window_map.lock().unwrap();
-        let object = window_map.get(&hwnd.0).unwrap();
-        f(&object.props)
+        let object = window_map.get(&hwnd.0)?;
+        Some(f(&object.props))
     }
 
     pub fn set_window_props<F>(hwnd: HWND, f: F)

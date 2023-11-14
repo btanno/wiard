@@ -21,9 +21,9 @@ pub(crate) fn register_class() {
             style: CS_VREDRAW | CS_HREDRAW,
             lpfnWndProc: Some(procedure::window_proc),
             hInstance: HINSTANCE(GetModuleHandleW(None).unwrap().0),
-            hCursor: LoadCursorW(None, IDC_ARROW).unwrap(),
             lpszClassName: WINDOW_CLASS_NAME,
             hbrBackground: HBRUSH(GetStockObject(WHITE_BRUSH).0),
+            hCursor: LoadCursorW(None, IDC_ARROW).unwrap(),
             ..Default::default()
         };
         if RegisterClassExW(&wc) == 0 {
@@ -207,6 +207,8 @@ pub struct WindowBuilder<'a, Rx, Title = &'static str, Sz = LogicalSize<u32>, St
     visible_ime_candidate_window: bool,
     accept_drop_files: bool,
     auto_close: bool,
+    icon: Option<Icon>,
+    cursor: Cursor,
 }
 
 impl<'a, Rx> WindowBuilder<'a, Rx> {
@@ -224,6 +226,8 @@ impl<'a, Rx> WindowBuilder<'a, Rx> {
             visible_ime_candidate_window: true,
             accept_drop_files: false,
             auto_close: true,
+            icon: None,
+            cursor: Cursor::default(),
         }
     }
 }
@@ -245,6 +249,8 @@ impl<'a, Rx, Title, Sz, Sty> WindowBuilder<'a, Rx, Title, Sz, Sty> {
             visible_ime_candidate_window: self.visible_ime_candidate_window,
             accept_drop_files: self.accept_drop_files,
             auto_close: self.auto_close,
+            icon: self.icon,
+            cursor: self.cursor,
         }
     }
 
@@ -270,6 +276,8 @@ impl<'a, Rx, Title, Sz, Sty> WindowBuilder<'a, Rx, Title, Sz, Sty> {
             visible_ime_candidate_window: self.visible_ime_candidate_window,
             accept_drop_files: self.accept_drop_files,
             auto_close: self.auto_close,
+            icon: self.icon,
+            cursor: self.cursor,
         }
     }
 
@@ -289,6 +297,8 @@ impl<'a, Rx, Title, Sz, Sty> WindowBuilder<'a, Rx, Title, Sz, Sty> {
             visible_ime_candidate_window: self.visible_ime_candidate_window,
             accept_drop_files: self.accept_drop_files,
             auto_close: self.auto_close,
+            icon: self.icon,
+            cursor: self.cursor,
         }
     }
 
@@ -321,6 +331,18 @@ impl<'a, Rx, Title, Sz, Sty> WindowBuilder<'a, Rx, Title, Sz, Sty> {
         self.auto_close = flag;
         self
     }
+
+    #[inline]
+    pub fn icon(mut self, icon: Icon) -> Self {
+        self.icon = Some(icon);
+        self
+    }
+
+    #[inline]
+    pub fn cursor(mut self, cursor: Cursor) -> Self {
+        self.cursor = cursor;
+        self
+    }
 }
 
 struct BuilderProps<Pos, Sz> {
@@ -334,6 +356,8 @@ struct BuilderProps<Pos, Sz> {
     visible_ime_candidate_window: bool,
     accept_drop_files: bool,
     auto_close: bool,
+    icon: Option<Icon>,
+    cursor: Cursor,
     event_rx_id: u64,
     parent: Option<HWND>,
 }
@@ -357,6 +381,8 @@ impl<Sz> BuilderProps<PhysicalPosition<i32>, Sz> {
             visible_ime_candidate_window: builder.visible_ime_candidate_window,
             accept_drop_files: builder.accept_drop_files,
             auto_close: builder.auto_close,
+            icon: builder.icon,
+            cursor: builder.cursor,
             event_rx_id: builder.event_rx.id(),
             parent: None,
         }
@@ -380,6 +406,8 @@ impl<Pos, Sz> BuilderProps<Pos, Sz> {
             visible_ime_candidate_window: builder.visible_ime_candidate_window,
             accept_drop_files: builder.accept_drop_files,
             auto_close: true,
+            icon: None,
+            cursor: builder.cursor,
             event_rx_id: builder.event_rx.id(),
             parent: Some(builder.parent),
         }
@@ -390,6 +418,7 @@ pub(crate) struct WindowProps {
     pub imm_context: ime::ImmContext,
     pub visible_ime_candidate_window: bool,
     pub auto_close: bool,
+    pub cursor: Cursor,
 }
 
 fn create_window<Pos, Sz>(
@@ -405,7 +434,7 @@ where
         let position = props.position.to_physical(dpi as i32);
         let size = props.inner_size.to_physical(dpi);
         let rc = adjust_window_rect_ex_for_dpi(size, props.style, false, props.ex_style, dpi);
-        let hinstance = GetModuleHandleW(None).unwrap();
+        let hinstance: HINSTANCE = GetModuleHandleW(None).unwrap().into();
         let hwnd = CreateWindowExW(
             props.ex_style,
             WINDOW_CLASS_NAME,
@@ -429,11 +458,32 @@ where
         } else {
             imm_context.disable();
         }
+        if let Some(icon) = props.icon {
+            if let Ok(big) = icon.load(hinstance) {
+                PostMessageW(
+                    hwnd,
+                    WM_SETICON,
+                    WPARAM(ICON_BIG as usize),
+                    LPARAM(big.0 as isize),
+                )
+                .ok();
+            }
+            if let Ok(small) = icon.load_small(hinstance) {
+                PostMessageW(
+                    hwnd,
+                    WM_SETICON,
+                    WPARAM(ICON_SMALL as usize),
+                    LPARAM(small.0 as isize),
+                )
+                .ok();
+            }
+        }
         DragAcceptFiles(hwnd, props.accept_drop_files);
         let window_props = WindowProps {
             imm_context,
             visible_ime_candidate_window: props.visible_ime_candidate_window,
             auto_close: props.auto_close,
+            cursor: props.cursor,
         };
         Context::register_window(f(hwnd), window_props, props.event_rx_id);
         if props.visiblity {
@@ -652,6 +702,16 @@ mod methods {
             ShowWindowAsync(hwnd, SW_RESTORE);
         }
     }
+
+    #[inline]
+    pub fn set_cursor(hwnd: HWND, cursor: Cursor) {
+        UiThread::send_task(move || {
+            cursor.set();
+            Context::set_window_props(hwnd, |props| {
+                props.cursor = cursor;
+            });
+        });
+    }
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -727,6 +787,17 @@ impl Window {
     #[inline]
     pub fn restore(&self) {
         methods::restore(self.hwnd);
+    }
+
+    #[inline]
+    pub fn cursor(&self) -> Option<Cursor> {
+        Context::get_window_props(self.hwnd, |props| props.cursor.clone())
+    }
+
+    #[inline]
+    pub fn set_cursor(&self, cursor: Cursor) {
+        let hwnd = self.hwnd;
+        methods::set_cursor(hwnd, cursor);
     }
 
     #[inline]
@@ -823,6 +894,17 @@ impl AsyncWindow {
     }
 
     #[inline]
+    pub fn cursor(&self) -> Option<Cursor> {
+        Context::get_window_props(self.hwnd, |props| props.cursor.clone())
+    }
+
+    #[inline]
+    pub fn set_cursor(&self, cursor: Cursor) {
+        let hwnd = self.hwnd;
+        methods::set_cursor(hwnd, cursor);
+    }
+
+    #[inline]
     pub fn is_closed(&self) -> bool {
         Context::window_is_none(self.hwnd)
     }
@@ -909,6 +991,7 @@ pub struct InnerWindowBuilder<'a, Rx, Pos = (), Sz = ()> {
     enable_ime: bool,
     visible_ime_candidate_window: bool,
     accept_drop_files: bool,
+    cursor: Cursor,
 }
 
 impl<'a, Rx> InnerWindowBuilder<'a, Rx> {
@@ -926,6 +1009,8 @@ impl<'a, Rx> InnerWindowBuilder<'a, Rx> {
             enable_ime: true,
             visible_ime_candidate_window: true,
             accept_drop_files: false,
+            cursor: Context::get_window_props(parent.hwnd(), |props| props.cursor.clone())
+                .unwrap_or_default(),
         }
     }
 }
@@ -945,6 +1030,7 @@ impl<'a, Rx, Pos, Sz> InnerWindowBuilder<'a, Rx, Pos, Sz> {
             enable_ime: self.enable_ime,
             visible_ime_candidate_window: self.visible_ime_candidate_window,
             accept_drop_files: self.accept_drop_files,
+            cursor: self.cursor,
         }
     }
 
@@ -962,6 +1048,7 @@ impl<'a, Rx, Pos, Sz> InnerWindowBuilder<'a, Rx, Pos, Sz> {
             enable_ime: self.enable_ime,
             visible_ime_candidate_window: self.visible_ime_candidate_window,
             accept_drop_files: self.accept_drop_files,
+            cursor: self.cursor,
         }
     }
 
@@ -1089,6 +1176,17 @@ impl InnerWindow {
     pub fn enable_ime(&self, enabled: bool) {
         methods::enable_ime(self.hwnd, enabled).blocking_recv().ok();
     }
+
+    #[inline]
+    pub fn cursor(&self) -> Option<Cursor> {
+        Context::get_window_props(self.hwnd, |props| props.cursor.clone())
+    }
+
+    #[inline]
+    pub fn set_cursor(&self, cursor: Cursor) {
+        let hwnd = self.hwnd;
+        methods::set_cursor(hwnd, cursor);
+    }
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -1145,6 +1243,17 @@ impl AsyncInnerWindow {
     #[inline]
     pub fn enable_ime(&self, enabled: bool) {
         methods::enable_ime(self.hwnd, enabled).blocking_recv().ok();
+    }
+
+    #[inline]
+    pub fn cursor(&self) -> Option<Cursor> {
+        Context::get_window_props(self.hwnd, |props| props.cursor.clone())
+    }
+
+    #[inline]
+    pub fn set_cursor(&self, cursor: Cursor) {
+        let hwnd = self.hwnd;
+        methods::set_cursor(hwnd, cursor);
     }
 }
 

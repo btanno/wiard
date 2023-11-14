@@ -79,6 +79,8 @@ unsafe fn on_set_cursor(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     if loword(lparam.0 as i32) != HTCLIENT as i16 {
         return DefWindowProcW(hwnd, WM_SETCURSOR, wparam, lparam);
     }
+    let cursor = Context::get_window_props(hwnd, |props| props.cursor.clone()).unwrap();
+    cursor.set();
     LRESULT(0)
 }
 
@@ -170,7 +172,8 @@ unsafe fn on_ime_set_context(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> LRES
     let lparam = {
         let mut value = lparam.0 as u32;
         value &= !ISC_SHOWUICOMPOSITIONWINDOW;
-        let candidate = Context::get_window_props(hwnd, |props| props.visible_ime_candidate_window);
+        let candidate =
+            Context::get_window_props(hwnd, |props| props.visible_ime_candidate_window).unwrap();
         if !candidate {
             value &= !ISC_SHOWUIALLCANDIDATEWINDOW;
         }
@@ -374,7 +377,7 @@ unsafe fn on_nc_create(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
 }
 
 unsafe fn on_close(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
-    let auto_close = Context::get_window_props(hwnd, |props| props.auto_close);
+    let auto_close = Context::get_window_props(hwnd, |props| props.auto_close).unwrap();
     if auto_close {
         return DefWindowProcW(hwnd, WM_CLOSE, wparam, lparam);
     }
