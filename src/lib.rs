@@ -64,6 +64,3 @@ pub use style::*;
 pub use ui_thread::UiThread;
 use utility::*;
 pub use window::*;
-
-#[doc(inline)]
-pub use context::set_panic_receiver;

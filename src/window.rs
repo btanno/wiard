@@ -32,12 +32,12 @@ pub(crate) fn register_class() {
     }
 }
 
-/// `EventReceive` and `AsyncEventReceiver` are implement this trait. 
+/// `EventReceive` and `AsyncEventReceiver` are implement this trait.
 pub trait IsReceiver {
     fn id(&self) -> u64;
 }
 
-/// `Window` and `AsyncWindow` are implement this trait. 
+/// `Window` and `AsyncWindow` are implement this trait.
 pub trait IsWindow {
     fn hwnd(&self) -> HWND;
 }
@@ -225,7 +225,7 @@ impl IsReceiver for AsyncEventReceiver {
     }
 }
 
-/// Builds a window. 
+/// Builds a window.
 pub struct WindowBuilder<'a, Rx, Title = &'static str, Sz = LogicalSize<u32>, Sty = WindowStyle> {
     event_rx: &'a Rx,
     title: Title,
@@ -506,13 +506,7 @@ where
         }
         if let Some(icon) = props.icon {
             if let Ok(big) = icon.load(hinstance) {
-                PostMessageW(
-                    hwnd,
-                    WM_SETICON,
-                    WPARAM(ICON_BIG as usize),
-                    LPARAM(big.0),
-                )
-                .ok();
+                PostMessageW(hwnd, WM_SETICON, WPARAM(ICON_BIG as usize), LPARAM(big.0)).ok();
             }
             if let Ok(small) = icon.load_small(hinstance) {
                 PostMessageW(

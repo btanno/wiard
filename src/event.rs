@@ -15,7 +15,7 @@ pub struct Moved {
     pub position: ScreenPosition<i32>,
 }
 
-/// An moving edge of window when resizing. 
+/// An moving edge of window when resizing.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum ResizingEdge {

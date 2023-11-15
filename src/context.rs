@@ -6,7 +6,7 @@ use std::sync::{
     Mutex, OnceLock,
 };
 use windows::Win32::{
-    Foundation::{HWND, WPARAM, LPARAM},
+    Foundation::{HWND, LPARAM, WPARAM},
     UI::WindowsAndMessaging::{PostMessageW, WM_CLOSE},
 };
 
@@ -154,19 +154,16 @@ impl Context {
         event_txs.clear();
     }
 
+    pub fn set_panic_receiver(rx: &impl IsReceiver) {
+        get_context()
+            .panic_receiver
+            .store(rx.id(), atomic::Ordering::SeqCst);
+    }
+
     pub fn shutdown() {
         Self::close_all_windows();
         ime::shutdown_text_service();
         let mut event_txs = get_context().event_txs.lock().unwrap();
         event_txs.clear();
     }
-}
-/// For specifying a receiver to panic when UI thread panics.
-///
-/// When UI thread catches a panic, the receiver resumes a panic from UI thread.
-///
-pub fn set_panic_receiver(rx: &impl IsReceiver) {
-    get_context()
-        .panic_receiver
-        .store(rx.id(), atomic::Ordering::SeqCst);
 }

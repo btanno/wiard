@@ -152,6 +152,15 @@ impl UiThread {
             .map_or(true, |th| th.is_finished())
     }
 
+    /// For specifying a receiver to panic when UI thread panics.
+    ///
+    /// When UI thread catches a panic, the receiver resumes a panic from UI thread.
+    ///
+    #[inline]
+    pub fn set_receiver_for_panic(rx: &impl IsReceiver) {
+        Context::set_panic_receiver(rx)
+    }
+
     /// Wait for UI thread to finish.
     #[inline]
     pub fn join() -> std::thread::Result<u32> {
