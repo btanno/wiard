@@ -4,6 +4,7 @@ use windows::Win32::{
     UI::Input::KeyboardAndMouse::*,
 };
 
+/// Represents a state of a keyboard key.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum KeyState {
@@ -11,6 +12,7 @@ pub enum KeyState {
     Released,
 }
 
+/// Represents a state of a mouse button.
 pub type ButtonState = KeyState;
 
 impl std::fmt::Display for KeyState {
@@ -20,6 +22,7 @@ impl std::fmt::Display for KeyState {
     }
 }
 
+/// Represents a mouse button.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum MouseButton {
@@ -49,6 +52,7 @@ impl std::fmt::Display for MouseButton {
     }
 }
 
+/// Represents mouse buttons.
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct MouseButtons(pub u32);
 
@@ -175,6 +179,7 @@ impl From<WPARAM> for MouseButtons {
     }
 }
 
+/// Represents a mouse state.
 #[derive(Clone, Debug)]
 pub struct MouseState {
     pub position: PhysicalPosition<i32>,
@@ -190,6 +195,7 @@ impl MouseState {
     }
 }
 
+/// Represents a mouse wheel axis.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum MouseWheelAxis {
@@ -197,8 +203,10 @@ pub enum MouseWheelAxis {
     Horizontal,
 }
 
+/// This value is a multiple of wheel value.
 pub const WHEEL_DELTA: i32 = windows::Win32::UI::WindowsAndMessaging::WHEEL_DELTA as i32;
 
+/// Represents a virtual key.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum VirtualKey {
@@ -310,9 +318,11 @@ impl std::fmt::Display for VirtualKey {
     }
 }
 
+/// Represents a scan code.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct ScanCode(pub u32);
 
+/// Represents a virtual key and a scan code.
 #[derive(Clone, Copy, Debug)]
 pub struct KeyCode {
     pub vkey: VirtualKey,

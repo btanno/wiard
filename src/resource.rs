@@ -6,6 +6,7 @@ use windows::Win32::{
     UI::WindowsAndMessaging::*,
 };
 
+/// Represents icons.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum Icon {
     Resource(u16),
@@ -20,6 +21,7 @@ pub enum Icon {
 }
 
 impl Icon {
+    /// An icon image from an file.
     #[inline]
     pub fn from_path(path: impl AsRef<Path>) -> Icon {
         Icon::File(path.as_ref().into())
@@ -83,6 +85,7 @@ impl Icon {
     }
 }
 
+/// Represents mouse cursors.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum Cursor {
     AppStaring,

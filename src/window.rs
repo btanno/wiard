@@ -32,14 +32,17 @@ pub(crate) fn register_class() {
     }
 }
 
+/// `EventReceive` and `AsyncEventReceiver` are implement this trait. 
 pub trait IsReceiver {
     fn id(&self) -> u64;
 }
 
+/// `Window` and `AsyncWindow` are implement this trait. 
 pub trait IsWindow {
     fn hwnd(&self) -> HWND;
 }
 
+/// Represents `Window` or `InnerWindow`
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum WindowKind {
     Window(Window),
@@ -55,6 +58,7 @@ impl WindowKind {
     }
 }
 
+/// Represents `AsyncWindow` or `AsyncInnerWindow`
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum AsyncWindowKind {
     Window(AsyncWindow),
@@ -78,7 +82,10 @@ pub(crate) enum RecvEventOrPanic {
     Panic(Box<dyn Any + Send>),
 }
 
+/// The type of receiving event from UI thread.
 pub type RecvEvent = (Event, WindowKind);
+
+/// The async version type of receiving event from UI thread.
 pub type AsyncRecvEvent = (Event, AsyncWindowKind);
 
 fn gen_id() -> u64 {
@@ -86,12 +93,14 @@ fn gen_id() -> u64 {
     ID.fetch_add(1, atomic::Ordering::SeqCst)
 }
 
+/// This object which receives an event from UI thread.
 pub struct EventReceiver {
     id: u64,
     rx: Receiver<RecvEventOrPanic>,
 }
 
 impl EventReceiver {
+    /// Creates a new event receiver.
     #[inline]
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
@@ -101,6 +110,10 @@ impl EventReceiver {
         Self { id, rx }
     }
 
+    /// Attempts to wait for an event from UI thread.
+    ///
+    /// When UI thread shutdowns, this function returns `None`.
+    ///
     #[inline]
     pub fn recv(&mut self) -> Option<RecvEvent> {
         match self.rx.blocking_recv()? {
@@ -109,6 +122,11 @@ impl EventReceiver {
         }
     }
 
+    /// Attempts to return a pending event from UI Thread.
+    ///
+    /// This function do not block.
+    /// When UI thread shutdowns, this function returns `Err(TryRecvError::Disconnected)`.
+    ///
     #[inline]
     pub fn try_recv(&mut self) -> TryRecvResult<RecvEvent> {
         use tokio::sync::mpsc;
@@ -131,12 +149,14 @@ impl IsReceiver for EventReceiver {
     }
 }
 
+/// This object which receives an event from UI thread.
 pub struct AsyncEventReceiver {
     id: u64,
     rx: Receiver<RecvEventOrPanic>,
 }
 
 impl AsyncEventReceiver {
+    /// Creates a new event receiver.
     #[inline]
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
@@ -146,6 +166,10 @@ impl AsyncEventReceiver {
         Self { id, rx }
     }
 
+    /// Attempts to wait for an event from UI thread.
+    ///
+    /// When UI thread shutdowns, this function returns `None`.
+    ///
     #[inline]
     pub async fn recv(&mut self) -> Option<AsyncRecvEvent> {
         let ret = match self.rx.recv().await? {
@@ -163,6 +187,11 @@ impl AsyncEventReceiver {
         }
     }
 
+    /// Attempts to return a pending event from UI Thread.
+    ///
+    /// This function do not block.
+    /// When UI thread shutdowns, this function returns `Err(TryRecvError::Disconnected)`.
+    ///
     #[inline]
     pub fn try_recv(&mut self) -> TryRecvResult<AsyncRecvEvent> {
         use tokio::sync::mpsc;
@@ -196,6 +225,7 @@ impl IsReceiver for AsyncEventReceiver {
     }
 }
 
+/// Builds a window. 
 pub struct WindowBuilder<'a, Rx, Title = &'static str, Sz = LogicalSize<u32>, Sty = WindowStyle> {
     event_rx: &'a Rx,
     title: Title,
@@ -213,6 +243,7 @@ pub struct WindowBuilder<'a, Rx, Title = &'static str, Sz = LogicalSize<u32>, St
 }
 
 impl<'a, Rx> WindowBuilder<'a, Rx> {
+    /// Creates a window builder.
     #[inline]
     pub fn new(event_rx: &'a Rx) -> Self {
         UiThread::init();
@@ -515,6 +546,7 @@ where
     Sz: ToPhysical<u32, Output<u32> = PhysicalSize<u32>> + Send + 'static,
     Sty: Style,
 {
+    /// Builds a window.
     pub fn build(self) -> Result<Window> {
         let (tx, rx) = tokio::sync::oneshot::channel::<Result<HWND>>();
         let props = BuilderProps::new(self);
@@ -538,6 +570,7 @@ where
     Sz: ToPhysical<u32, Output<u32> = PhysicalSize<u32>> + Send + 'static,
     Sty: Style,
 {
+    /// Builds a window.
     pub async fn build(self) -> Result<AsyncWindow> {
         let (tx, rx) = tokio::sync::oneshot::channel::<Result<HWND>>();
         let props = BuilderProps::new(self);
@@ -730,6 +763,7 @@ mod methods {
     }
 }
 
+/// Represents a window.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Window {
     hwnd: HWND,
@@ -825,6 +859,11 @@ impl Window {
     pub fn close(&self) {
         methods::close(self.hwnd);
     }
+
+    #[inline]
+    pub fn raw_handle(&self) -> isize {
+        self.hwnd.0
+    }
 }
 
 impl IsWindow for Window {
@@ -834,6 +873,7 @@ impl IsWindow for Window {
     }
 }
 
+/// Represents a window of async version.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct AsyncWindow {
     hwnd: HWND,
@@ -929,6 +969,11 @@ impl AsyncWindow {
     pub fn close(&self) {
         methods::close(self.hwnd);
     }
+
+    #[inline]
+    pub fn raw_handle(&self) -> isize {
+        self.hwnd.0
+    }
 }
 
 impl IsWindow for AsyncWindow {
@@ -998,6 +1043,10 @@ impl raw_window_handle::HasDisplayHandle for AsyncWindow {
     }
 }
 
+/// Builds a inner window.
+///
+/// Needs specifying position and size of an inner window.
+///
 pub struct InnerWindowBuilder<'a, Rx, Pos = (), Sz = ()> {
     event_rx: &'a Rx,
     parent_inner: HWND,
@@ -1011,6 +1060,7 @@ pub struct InnerWindowBuilder<'a, Rx, Pos = (), Sz = ()> {
 }
 
 impl<'a, Rx> InnerWindowBuilder<'a, Rx> {
+    /// Creates an inner window builder.
     #[inline]
     pub fn new<T>(event_rx: &'a Rx, parent: &T) -> Self
     where
@@ -1098,6 +1148,7 @@ where
     Pos: ToPhysical<i32, Output<i32> = PhysicalPosition<i32>> + Send + 'static,
     Sz: ToPhysical<u32, Output<u32> = PhysicalSize<u32>> + Send + 'static,
 {
+    /// Builds an inner window.
     #[inline]
     pub fn build(self) -> Result<InnerWindow> {
         let (tx, rx) = tokio::sync::oneshot::channel::<Result<HWND>>();
@@ -1121,6 +1172,7 @@ where
     Pos: ToPhysical<i32, Output<i32> = PhysicalPosition<i32>> + Send + 'static,
     Sz: ToPhysical<u32, Output<u32> = PhysicalSize<u32>> + Send + 'static,
 {
+    /// Builds an inner window of async version.
     #[inline]
     pub async fn build(self) -> Result<AsyncInnerWindow> {
         let (tx, rx) = tokio::sync::oneshot::channel::<Result<HWND>>();
@@ -1139,6 +1191,7 @@ where
     }
 }
 
+/// Represents an inner window.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct InnerWindow {
     hwnd: HWND,
@@ -1203,8 +1256,14 @@ impl InnerWindow {
         let hwnd = self.hwnd;
         methods::set_cursor(hwnd, cursor);
     }
+
+    #[inline]
+    pub fn raw_handle(&self) -> isize {
+        self.hwnd.0
+    }
 }
 
+/// Represents an inner window of async version.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct AsyncInnerWindow {
     hwnd: HWND,
@@ -1270,6 +1329,11 @@ impl AsyncInnerWindow {
     pub fn set_cursor(&self, cursor: Cursor) {
         let hwnd = self.hwnd;
         methods::set_cursor(hwnd, cursor);
+    }
+
+    #[inline]
+    pub fn raw_handle(&self) -> isize {
+        self.hwnd.0
     }
 }
 

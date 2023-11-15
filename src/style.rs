@@ -1,5 +1,6 @@
 use windows::Win32::UI::WindowsAndMessaging::*;
 
+/// Window styles are implement this trait.
 pub trait Style {
     fn style(&self) -> WINDOW_STYLE;
     fn ex_style(&self) -> WINDOW_EX_STYLE;
@@ -16,6 +17,7 @@ where
     }
 }
 
+/// Represents a borderless window style.
 #[derive(Clone, PartialEq, Eq, Debug, Default)]
 pub struct BorderlessStyle {
     ex_style: WINDOW_EX_STYLE,
@@ -41,6 +43,7 @@ impl Style for BorderlessStyle {
     }
 }
 
+/// Represents a window style.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct WindowStyle {
     style: WINDOW_STYLE,

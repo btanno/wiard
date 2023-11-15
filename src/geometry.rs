@@ -13,6 +13,7 @@ pub mod coord {
 
 use coord::*;
 
+/// The generic position object.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Position<T, Coord> {
@@ -32,6 +33,7 @@ impl<T, Coord> Position<T, Coord> {
     }
 }
 
+/// The generic size object.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Size<T, Coord> {
@@ -51,11 +53,16 @@ impl<T, Coord> Size<T, Coord> {
     }
 }
 
+/// The type of logical position.
 pub type LogicalPosition<T> = Position<T, LogicalCoord>;
+/// The type of physical position.
 pub type PhysicalPosition<T> = Position<T, PhysicalCoord>;
+/// The type of screen position.
 pub type ScreenPosition<T> = Position<T, ScreenCoord>;
 
+/// The type of logical size.
 pub type LogicalSize<T> = Size<T, LogicalCoord>;
+/// The type of physical size.
 pub type PhysicalSize<T> = Size<T, PhysicalCoord>;
 
 impl From<POINT> for PhysicalPosition<i32> {
@@ -92,14 +99,17 @@ impl From<PhysicalSize<u32>> for SIZE {
     }
 }
 
+/// This value is the base of logical position and size.
 pub const DEFAULT_DPI: u32 = 96;
 
+/// For converting to a logical coord value.
 pub trait ToLogical<T> {
     type Output<U>;
 
     fn to_logical(&self, dpi: T) -> Self::Output<T>;
 }
 
+/// For converting to a physical coord value.
 pub trait ToPhysical<T> {
     type Output<U>;
 

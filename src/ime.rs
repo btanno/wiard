@@ -57,6 +57,7 @@ impl Drop for ImmContext {
     }
 }
 
+/// Represents a clause when an IME composition.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Clause {
     pub range: std::ops::Range<usize>,

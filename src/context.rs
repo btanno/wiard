@@ -161,7 +161,10 @@ impl Context {
         event_txs.clear();
     }
 }
-
+/// For specifying a receiver to panic when UI thread panics.
+///
+/// When UI thread catches a panic, the receiver resumes a panic from UI thread.
+///
 pub fn set_panic_receiver(rx: &impl IsReceiver) {
     get_context()
         .panic_receiver

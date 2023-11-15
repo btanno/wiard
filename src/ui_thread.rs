@@ -109,9 +109,14 @@ impl Thread {
 
 static THREAD: OnceLock<Mutex<Thread>> = OnceLock::new();
 
+/// Represents UI Thread.
 pub struct UiThread;
 
 impl UiThread {
+    /// Initializes UI thread.
+    ///
+    /// In general, no needs to call this function.
+    ///
     pub fn init() {
         THREAD.get_or_init(|| {
             enable_dpi_awareness();
@@ -119,11 +124,22 @@ impl UiThread {
         });
     }
 
+    /// Sends a closure to UI thread.
+    ///
+    /// A sent closure is called in UI thread.
+    ///
+    /// This function is not wait for calling a closure.
+    /// If you want to wait for calling a closure completely, use a chennel such as `mpsc`.
+    ///
     #[inline]
     pub fn send_task(f: impl FnOnce() + Send + 'static) {
         THREAD.get().unwrap().lock().unwrap().send_task(f);
     }
 
+    /// Checks if UI thread has finished.
+    ///
+    /// This function do not block;
+    ///
     #[inline]
     pub fn is_finished() -> bool {
         THREAD
@@ -136,6 +152,7 @@ impl UiThread {
             .map_or(true, |th| th.is_finished())
     }
 
+    /// Wait for UI thread to finish.
     #[inline]
     pub fn join() -> std::thread::Result<u32> {
         let th = THREAD.get().unwrap().lock().unwrap().th.take().unwrap();
