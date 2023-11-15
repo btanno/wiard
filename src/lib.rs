@@ -41,6 +41,7 @@
 
 mod context;
 mod device;
+mod dialog;
 mod error;
 pub mod event;
 mod geometry;
@@ -54,6 +55,8 @@ mod window;
 
 use context::*;
 pub use device::*;
+pub use dialog::*;
+pub use dialog::{FileDialogOptions, FileOpenDialog};
 pub use error::*;
 #[doc(inline)]
 pub use event::{Event, ResizingEdge};
