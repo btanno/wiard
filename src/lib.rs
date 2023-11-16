@@ -69,4 +69,3 @@ use utility::*;
 pub use window::*;
 
 pub use utility::is_dark_mode;
-
