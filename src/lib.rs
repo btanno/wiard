@@ -67,3 +67,6 @@ pub use style::*;
 pub use ui_thread::UiThread;
 use utility::*;
 pub use window::*;
+
+pub use utility::is_dark_mode;
+

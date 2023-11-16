@@ -2,6 +2,9 @@ use crate::*;
 use windows::Win32::{
     Foundation::*,
     Graphics::Gdi::{MonitorFromPoint, MONITOR_DEFAULTTOPRIMARY},
+    System::Registry::{
+        RegGetValueW, HKEY_CURRENT_USER, REG_DWORD, REG_VALUE_TYPE, RRF_RT_REG_DWORD,
+    },
     UI::HiDpi::*,
     UI::WindowsAndMessaging::*,
 };
@@ -82,4 +85,30 @@ pub fn lparam_to_point<C>(lparam: LPARAM) -> Position<i32, C> {
 
 pub fn lparam_to_size(lparam: LPARAM) -> PhysicalSize<u32> {
     Size::new(get_x_lparam(lparam) as _, get_y_lparam(lparam) as _)
+}
+
+/// Check the dark mode in Windows.
+pub fn is_dark_mode() -> bool {
+    let key =
+        windows::core::w!("Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize");
+    let value = windows::core::w!("AppsUseLightTheme");
+    unsafe {
+        let mut ty = REG_VALUE_TYPE::default();
+        let mut data = 0u32;
+        let mut size = std::mem::size_of::<u32>() as u32;
+        let ret = RegGetValueW(
+            HKEY_CURRENT_USER,
+            key,
+            value,
+            RRF_RT_REG_DWORD,
+            Some(&mut ty),
+            Some(&mut data as *mut u32 as *mut std::ffi::c_void),
+            Some(&mut size),
+        );
+        if let Err(e) = ret {
+            log::error!("{e}");
+            return false;
+        }
+        ty == REG_DWORD && data == 0
+    }
 }

@@ -4,7 +4,8 @@ use std::sync::atomic::{self, AtomicU64};
 use tokio::sync::oneshot;
 use windows::core::{HSTRING, PCWSTR};
 use windows::Win32::{
-    Foundation::{HINSTANCE, HWND, LPARAM, WPARAM},
+    Foundation::{BOOL, HINSTANCE, HWND, LPARAM, WPARAM},
+    Graphics::Dwm::*,
     Graphics::Gdi::{GetStockObject, HBRUSH, WHITE_BRUSH},
     System::LibraryLoader::GetModuleHandleW,
     UI::HiDpi::GetDpiForWindow,
@@ -497,6 +498,21 @@ where
         );
         if hwnd == HWND(0) {
             return Err(Error::from_win32());
+        }
+        let dark_mode = BOOL::from(is_dark_mode());
+        if dark_mode.as_bool() {
+            log::info!("Dark mode");
+        } else {
+            log::info!("Light mode");
+        }
+        let ret = DwmSetWindowAttribute(
+            hwnd,
+            DWMWA_USE_IMMERSIVE_DARK_MODE,
+            &dark_mode as *const BOOL as *const std::ffi::c_void,
+            std::mem::size_of::<BOOL>() as u32,
+        );
+        if let Err(e) = ret {
+            log::error!("DwmSetWindowAttribute: {e}");
         }
         let imm_context = ime::ImmContext::new(hwnd);
         if props.enable_ime {
