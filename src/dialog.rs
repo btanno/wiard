@@ -2,7 +2,8 @@ use crate::*;
 use std::path::PathBuf;
 use tokio::sync::oneshot;
 use windows::core::{ComInterface, HSTRING, PCWSTR, PWSTR};
-use windows::Win32::{Foundation::E_FAIL, System::Com::*, UI::Shell::Common::*, UI::Shell::*};
+use windows::Win32::Foundation::ERROR_CANCELLED;
+use windows::Win32::{System::Com::*, UI::Shell::Common::*, UI::Shell::*};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct FileDialogOptions(pub u32);
@@ -210,7 +211,7 @@ impl DisplayName {
     unsafe fn to_path_buf(&self) -> Result<PathBuf> {
         let len = (0..isize::MAX)
             .position(|i| *self.0 .0.offset(i) == 0)
-            .ok_or(windows::core::Error::from(E_FAIL))?;
+            .ok_or(std::io::Error::from(std::io::ErrorKind::InvalidData))?;
         let slice = std::slice::from_raw_parts(self.0 .0, len);
         let path: PathBuf = String::from_utf16_lossy(slice).into();
         Ok(path)
@@ -275,20 +276,23 @@ where
     let mut params = dialog.params;
     params.options |= T::OPTIONS;
     UiThread::send_task(move || unsafe {
-        let dialog: IFileOpenDialog = {
-            match CoCreateInstance(&FileOpenDialog, None, CLSCTX_INPROC_SERVER) {
-                Ok(dialog) => dialog,
-                Err(_) => {
-                    tx.send(None).ok();
-                    return;
-                }
-            }
+        let task = || -> Result<T> {
+            let dialog: IFileOpenDialog =
+                CoCreateInstance(&FileOpenDialog, None, CLSCTX_INPROC_SERVER)?;
+            show_dialog(&dialog, params)?;
+            T::get_result(&dialog)
         };
-        if show_dialog(&dialog, params).is_err() {
-            tx.send(None).ok();
-            return;
+        match task() {
+            Ok(ret) => {
+                tx.send(Some(ret)).ok();
+            }
+            Err(e) => {
+                if !matches!(e, Error::Api(ref e) if e.code() == ERROR_CANCELLED.into()) {
+                    log::error!("{e}");
+                }
+                tx.send(None).ok();
+            }
         }
-        tx.send(T::get_result(&dialog).ok()).ok();
     });
     rx
 }
@@ -424,25 +428,25 @@ where
     let (tx, rx) = oneshot::channel::<Option<PathBuf>>();
     let params = dialog.params;
     UiThread::send_task(move || unsafe {
-        let dialog: IFileSaveDialog = {
-            match CoCreateInstance(&FileSaveDialog, None, CLSCTX_INPROC_SERVER) {
-                Ok(dialog) => dialog,
-                Err(_) => {
-                    tx.send(None).ok();
-                    return;
-                }
-            }
-        };
-        if show_dialog(&dialog, params).is_err() {
-            tx.send(None).ok();
-            return;
-        }
-        let result = || -> Result<PathBuf> {
+        let task = || -> Result<PathBuf> {
+            let dialog: IFileSaveDialog =
+                CoCreateInstance(&FileSaveDialog, None, CLSCTX_INPROC_SERVER)?;
+            show_dialog(&dialog, params)?;
             let result = dialog.GetResult()?;
             let result = DisplayName(result.GetDisplayName(SIGDN_FILESYSPATH)?).to_path_buf()?;
             Ok(result)
-        }();
-        tx.send(result.ok()).ok();
+        };
+        match task() {
+            Ok(path) => {
+                tx.send(Some(path)).ok();
+            }
+            Err(e) => {
+                if !matches!(e, Error::Api(ref e) if e.code() == ERROR_CANCELLED.into()) {
+                    log::error!("{e}");
+                }
+                tx.send(None).ok();
+            }
+        }
     });
     rx
 }
