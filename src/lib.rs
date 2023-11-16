@@ -1,4 +1,4 @@
-//! Sync and Async window handing library for Windows in Rust
+//! Window handing library for Windows in Rust
 //!
 //! # Simple examples
 //!
