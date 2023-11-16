@@ -5,6 +5,7 @@ use windows::core::{ComInterface, HSTRING, PCWSTR, PWSTR};
 use windows::Win32::Foundation::ERROR_CANCELLED;
 use windows::Win32::{System::Com::*, UI::Shell::Common::*, UI::Shell::*};
 
+/// Represents options of dialogs.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct FileDialogOptions(pub u32);
 
@@ -88,6 +89,7 @@ impl From<FileDialogOptions> for FILEOPENDIALOGOPTIONS {
     }
 }
 
+/// For specifying an extension in dialogs.
 pub struct FilterSpec {
     pub name: String,
     pub spec: String,
@@ -297,6 +299,7 @@ where
     rx
 }
 
+/// A dialog for specifying a file (or files) to open.
 pub struct FileOpenDialog<W, T = ()> {
     params: Params<W>,
     _t: std::marker::PhantomData<T>,
@@ -451,6 +454,7 @@ where
     rx
 }
 
+/// A dialog for specifying a file to save.
 pub struct FileSaveDialog<W = ()> {
     params: Params<W>,
 }
