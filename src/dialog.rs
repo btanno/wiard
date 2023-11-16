@@ -105,6 +105,7 @@ impl FilterSpec {
     }
 }
 
+/// For specifying extensions in dialogs.
 pub trait FilterSpecs {
     fn to_vec(self) -> Vec<FilterSpec>;
 }
