@@ -65,7 +65,7 @@ impl Context {
         };
         let mut window_map = ctx.window_map.lock().unwrap();
         let hwnd = kind.hwnd();
-        let parent = props.parent.clone();
+        let parent = props.parent;
         window_map.insert(
             hwnd.0,
             Object {

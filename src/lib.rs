@@ -1,3 +1,5 @@
+#![allow(clippy::needless_doctest_main)]
+
 //! Window handing library for Windows in Rust
 //!
 //! # Simple examples
