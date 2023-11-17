@@ -1,5 +1,5 @@
 fn main() -> anyhow::Result<()> {
-    let mut event_rx = wiard::EventReceiver::new();
+    let event_rx = wiard::EventReceiver::new();
     let mut windows = vec![];
     let root = wiard::Window::builder(&event_rx)
         .title(format!("wiard windows[0]"))

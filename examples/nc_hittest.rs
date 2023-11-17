@@ -1,5 +1,5 @@
 fn main() -> anyhow::Result<()> {
-    let mut event_rx = wiard::EventReceiver::new();
+    let event_rx = wiard::EventReceiver::new();
     let _window = wiard::Window::builder(&event_rx)
         .title("wiard nc_hittest")
         .hook_nc_hittest(true)

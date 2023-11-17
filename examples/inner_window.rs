@@ -11,7 +11,7 @@ fn main() -> anyhow::Result<()> {
     unsafe {
         CoInitializeEx(None, COINIT_MULTITHREADED | COINIT_DISABLE_OLE1DDE)?;
     }
-    let mut event_rx = wiard::EventReceiver::new();
+    let event_rx = wiard::EventReceiver::new();
     let main_window = wiard::Window::builder(&event_rx)
         .title("wiard inner window")
         .build()?;

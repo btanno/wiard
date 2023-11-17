@@ -5,7 +5,7 @@ use std::sync::mpsc;
 fn panic_recv_test() {
     let (tx, rx) = mpsc::channel::<()>();
     let t = std::thread::spawn(move || {
-        let mut event_rx = wiard::EventReceiver::new();
+        let event_rx = wiard::EventReceiver::new();
         let _window = wiard::Window::builder(&event_rx)
             .visible(false)
             .build()

@@ -1,5 +1,6 @@
 use crate::*;
 use std::any::Any;
+use std::cell::RefCell;
 use std::sync::atomic::{self, AtomicU64};
 use tokio::sync::oneshot;
 use windows::core::{HSTRING, PCWSTR};
@@ -97,7 +98,7 @@ fn gen_id() -> u64 {
 /// This object which receives an event from UI thread.
 pub struct EventReceiver {
     id: u64,
-    rx: Receiver<RecvEventOrPanic>,
+    rx: RefCell<Receiver<RecvEventOrPanic>>,
 }
 
 impl EventReceiver {
@@ -108,7 +109,10 @@ impl EventReceiver {
         let id = gen_id();
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
         Context::register_event_tx(id, tx);
-        Self { id, rx }
+        Self {
+            id,
+            rx: RefCell::new(rx),
+        }
     }
 
     /// Attempts to wait for an event from UI thread.
@@ -116,8 +120,8 @@ impl EventReceiver {
     /// When UI thread shutdowns, this function returns `None`.
     ///
     #[inline]
-    pub fn recv(&mut self) -> Option<RecvEvent> {
-        match self.rx.blocking_recv()? {
+    pub fn recv(&self) -> Option<RecvEvent> {
+        match self.rx.borrow_mut().blocking_recv()? {
             RecvEventOrPanic::Event(ret) => Some(ret),
             RecvEventOrPanic::Panic(e) => std::panic::resume_unwind(e),
         }
@@ -129,10 +133,10 @@ impl EventReceiver {
     /// When UI thread shutdowns, this function returns `Err(TryRecvError::Disconnected)`.
     ///
     #[inline]
-    pub fn try_recv(&mut self) -> TryRecvResult<RecvEvent> {
+    pub fn try_recv(&self) -> TryRecvResult<RecvEvent> {
         use tokio::sync::mpsc;
 
-        match self.rx.try_recv() {
+        match self.rx.borrow_mut().try_recv() {
             Ok(ret) => match ret {
                 RecvEventOrPanic::Event(re) => Ok(re),
                 RecvEventOrPanic::Panic(e) => std::panic::resume_unwind(e),
@@ -153,7 +157,7 @@ impl IsReceiver for EventReceiver {
 /// This object which receives an event from UI thread.
 pub struct AsyncEventReceiver {
     id: u64,
-    rx: Receiver<RecvEventOrPanic>,
+    rx: RefCell<Receiver<RecvEventOrPanic>>,
 }
 
 impl AsyncEventReceiver {
@@ -164,7 +168,10 @@ impl AsyncEventReceiver {
         let id = gen_id();
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
         Context::register_event_tx(id, tx);
-        Self { id, rx }
+        Self {
+            id,
+            rx: RefCell::new(rx),
+        }
     }
 
     /// Attempts to wait for an event from UI thread.
@@ -172,8 +179,8 @@ impl AsyncEventReceiver {
     /// When UI thread shutdowns, this function returns `None`.
     ///
     #[inline]
-    pub async fn recv(&mut self) -> Option<AsyncRecvEvent> {
-        let ret = match self.rx.recv().await? {
+    pub async fn recv(&self) -> Option<AsyncRecvEvent> {
+        let ret = match self.rx.borrow_mut().recv().await? {
             RecvEventOrPanic::Event(re) => re,
             RecvEventOrPanic::Panic(e) => std::panic::resume_unwind(e),
         };
@@ -194,10 +201,10 @@ impl AsyncEventReceiver {
     /// When UI thread shutdowns, this function returns `Err(TryRecvError::Disconnected)`.
     ///
     #[inline]
-    pub fn try_recv(&mut self) -> TryRecvResult<AsyncRecvEvent> {
+    pub fn try_recv(&self) -> TryRecvResult<AsyncRecvEvent> {
         use tokio::sync::mpsc;
 
-        match self.rx.try_recv() {
+        match self.rx.borrow_mut().try_recv() {
             Ok(ret) => {
                 let ret = match ret {
                     RecvEventOrPanic::Event(re) => re,
