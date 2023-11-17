@@ -2,6 +2,12 @@
 name = "wiard"
 version = "0.1.0"
 edition = "2021"
+description = "Window handling library for Windows in Rust"
+repository = "https://github.com/btanno/wiard"
+license = "MIT"
+readme = "README.md"
+categories = ["gui"]
+keywords = ["gui", "windows"]
 
 [features]
 serde = ["dep:serde"]
