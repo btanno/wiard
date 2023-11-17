@@ -4,7 +4,7 @@ use std::sync::atomic::{self, AtomicU64};
 use tokio::sync::oneshot;
 use windows::core::{HSTRING, PCWSTR};
 use windows::Win32::{
-    Foundation::{BOOL, HINSTANCE, HWND, LPARAM, WPARAM},
+    Foundation::{BOOL, HINSTANCE, HWND, LPARAM, RECT, WPARAM},
     Graphics::Dwm::*,
     Graphics::Gdi::{GetStockObject, HBRUSH, WHITE_BRUSH},
     System::LibraryLoader::GetModuleHandleW,
@@ -644,6 +644,8 @@ where
 }
 
 mod methods {
+    use windows::Win32::Graphics::Gdi::{RedrawWindow, RDW_INVALIDATE};
+
     use super::*;
 
     #[inline]
@@ -789,6 +791,15 @@ mod methods {
             });
         });
     }
+
+    #[inline]
+    pub fn redraw(hwnd: HWND, invalidate_rect: Option<PhysicalRect<i32>>) {
+        UiThread::send_task(move || unsafe {
+            let rc: Option<RECT> = invalidate_rect.map(|rc| rc.into());
+            let p = rc.as_ref().map(|p| p as *const RECT);
+            RedrawWindow(hwnd, p, None, RDW_INVALIDATE);
+        });
+    }
 }
 
 /// Represents a window.
@@ -876,6 +887,11 @@ impl Window {
     pub fn set_cursor(&self, cursor: Cursor) {
         let hwnd = self.hwnd;
         methods::set_cursor(hwnd, cursor);
+    }
+
+    #[inline]
+    pub fn redraw(&self, invalidate_rect: Option<PhysicalRect<i32>>) {
+        methods::redraw(self.hwnd, invalidate_rect);
     }
 
     #[inline]
@@ -986,6 +1002,11 @@ impl AsyncWindow {
     pub fn set_cursor(&self, cursor: Cursor) {
         let hwnd = self.hwnd;
         methods::set_cursor(hwnd, cursor);
+    }
+    
+    #[inline]
+    pub fn redraw(&self, invalidate_rect: Option<PhysicalRect<i32>>) {
+        methods::redraw(self.hwnd, invalidate_rect);
     }
 
     #[inline]

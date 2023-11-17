@@ -37,13 +37,8 @@ unsafe fn on_paint(hwnd: HWND) -> LRESULT {
     let mut ps = PAINTSTRUCT::default();
     let _hdc = BeginPaint(hwnd, &mut ps);
     EndPaint(hwnd, &ps);
-    Context::send_event(
-        hwnd,
-        Event::Draw(event::Draw {
-            position: PhysicalPosition::new(rc.left, rc.top),
-            size: PhysicalSize::new((rc.right - rc.left) as u32, (rc.bottom - rc.top) as u32),
-        }),
-    );
+    let invalidate_rect = PhysicalRect::new(rc.left, rc.top, rc.right, rc.bottom);
+    Context::send_event(hwnd, Event::Draw(event::Draw { invalidate_rect }));
     LRESULT(0)
 }
 

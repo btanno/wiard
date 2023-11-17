@@ -9,8 +9,7 @@ use windows::Win32::{
 
 #[derive(Debug)]
 pub struct Draw {
-    pub position: PhysicalPosition<i32>,
-    pub size: PhysicalSize<u32>,
+    pub invalidate_rect: PhysicalRect<i32>,
 }
 
 #[derive(Debug)]
