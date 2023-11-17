@@ -53,6 +53,7 @@ impl<T, Coord> Size<T, Coord> {
     }
 }
 
+/// The generic rectable object.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Rect<T, Coord> {
