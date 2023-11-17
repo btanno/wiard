@@ -85,6 +85,7 @@ impl WindowStyle {
     #[inline]
     pub fn no_redirection_bitmap(mut self, flag: bool) -> Self {
         set_style(&mut self.ex_style, WS_EX_NOREDIRECTIONBITMAP, flag);
+        set_style(&mut self.ex_style, WS_EX_OVERLAPPEDWINDOW, !flag); 
         self
     }
 }
@@ -94,7 +95,7 @@ impl Default for WindowStyle {
     fn default() -> Self {
         Self {
             style: WS_OVERLAPPEDWINDOW,
-            ex_style: Default::default(),
+            ex_style: WS_EX_OVERLAPPEDWINDOW,
         }
     }
 }
