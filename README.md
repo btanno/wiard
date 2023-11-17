@@ -7,7 +7,7 @@ Window handling library for Windows in Rust
 #### sync version
 ```rust
 fn main() {
-    let event_rx = wiard::EventReceiver::new();
+    let mut event_rx = wiard::EventReceiver::new();
     let _window = wiard::Window::builder(&event_rx)
         .build()
         .unwrap();
@@ -24,7 +24,7 @@ fn main() {
 ```rust
 #[tokio::main]
 async fn main() {
-    let event_rx = wiard::AsyncEventReceiver::new();
+    let mut event_rx = wiard::AsyncEventReceiver::new();
     let _window = wiard::Window::builder(&event_rx)
         .await
         .unwrap();

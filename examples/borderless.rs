@@ -1,6 +1,6 @@
 fn main() -> anyhow::Result<()> {
     println!("quit to press \"Q\" key");
-    let event_rx = wiard::EventReceiver::new();
+    let mut event_rx = wiard::EventReceiver::new();
     let window = wiard::Window::builder(&event_rx)
         .title("wiard borderless")
         .style(wiard::WindowStyle::borderless())

@@ -1,5 +1,5 @@
 fn main() -> anyhow::Result<()> {
-    let event_rx = wiard::EventReceiver::new();
+    let mut event_rx = wiard::EventReceiver::new();
     let window = wiard::Window::builder(&event_rx)
         .title("wiard dialog")
         .build()?;

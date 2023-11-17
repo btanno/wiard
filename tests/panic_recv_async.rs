@@ -1,7 +1,7 @@
 #[tokio::test]
 #[should_panic(expected = "panic!!!!!")]
 async fn panic_recv_async_test() {
-    let event_rx = wiard::AsyncEventReceiver::new();
+    let mut event_rx = wiard::AsyncEventReceiver::new();
     let _window = wiard::Window::builder(&event_rx)
         .visible(false)
         .build()

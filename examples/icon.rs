@@ -1,5 +1,5 @@
 fn main() -> anyhow::Result<()> {
-    let event_rx = wiard::EventReceiver::new();
+    let mut event_rx = wiard::EventReceiver::new();
     let _window = wiard::Window::builder(&event_rx)
         .title("wiard icon")
         .icon(wiard::Icon::from_path("examples/icon.ico"))
