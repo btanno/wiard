@@ -9,7 +9,7 @@ fn main() -> anyhow::Result<()> {
             break;
         };
         if let wiard::Event::NcHitTest(t) = event {
-            t.set(Some(wiard::event::NcHitTestValue::Caption));
+            t.set(Some(wiard::NcHitTestValue::Caption));
         }
     }
     Ok(())
