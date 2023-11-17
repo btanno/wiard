@@ -54,11 +54,13 @@ impl<T, Coord> Size<T, Coord> {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Rect<T, Coord> {
     pub left: T,
     pub top: T,
     pub right: T,
     pub bottom: T,
+    #[cfg_attr(feature = "serde", serde(skip))]
     _coord: std::marker::PhantomData<Coord>,
 }
 
