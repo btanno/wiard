@@ -238,6 +238,7 @@ pub struct WindowBuilder<'a, Rx, Title = &'static str, Sz = LogicalSize<u32>, St
     visible_ime_candidate_window: bool,
     accept_drop_files: bool,
     auto_close: bool,
+    nc_hittest: bool,
     icon: Option<Icon>,
     cursor: Cursor,
     parent: Option<HWND>,
@@ -259,6 +260,7 @@ impl<'a, Rx> WindowBuilder<'a, Rx> {
             visible_ime_candidate_window: true,
             accept_drop_files: false,
             auto_close: true,
+            nc_hittest: false,
             icon: None,
             cursor: Cursor::default(),
             parent: None,
@@ -283,6 +285,7 @@ impl<'a, Rx, Title, Sz, Sty> WindowBuilder<'a, Rx, Title, Sz, Sty> {
             visible_ime_candidate_window: self.visible_ime_candidate_window,
             accept_drop_files: self.accept_drop_files,
             auto_close: self.auto_close,
+            nc_hittest: self.nc_hittest,
             icon: self.icon,
             cursor: self.cursor,
             parent: self.parent,
@@ -311,6 +314,7 @@ impl<'a, Rx, Title, Sz, Sty> WindowBuilder<'a, Rx, Title, Sz, Sty> {
             visible_ime_candidate_window: self.visible_ime_candidate_window,
             accept_drop_files: self.accept_drop_files,
             auto_close: self.auto_close,
+            nc_hittest: self.nc_hittest,
             icon: self.icon,
             cursor: self.cursor,
             parent: self.parent,
@@ -333,6 +337,7 @@ impl<'a, Rx, Title, Sz, Sty> WindowBuilder<'a, Rx, Title, Sz, Sty> {
             visible_ime_candidate_window: self.visible_ime_candidate_window,
             accept_drop_files: self.accept_drop_files,
             auto_close: self.auto_close,
+            nc_hittest: self.nc_hittest,
             icon: self.icon,
             cursor: self.cursor,
             parent: self.parent,
@@ -386,6 +391,12 @@ impl<'a, Rx, Title, Sz, Sty> WindowBuilder<'a, Rx, Title, Sz, Sty> {
         self.parent = Some(parent.hwnd());
         self
     }
+
+    #[inline]
+    pub fn hook_nc_hittest(mut self, flag: bool) -> Self {
+        self.nc_hittest = flag;
+        self
+    }
 }
 
 struct BuilderProps<Pos, Sz> {
@@ -401,6 +412,7 @@ struct BuilderProps<Pos, Sz> {
     auto_close: bool,
     icon: Option<Icon>,
     cursor: Cursor,
+    nc_hittest: bool,
     event_rx_id: u64,
     parent: Option<HWND>,
     parent_inner: Option<HWND>,
@@ -427,6 +439,7 @@ impl<Sz> BuilderProps<PhysicalPosition<i32>, Sz> {
             auto_close: builder.auto_close,
             icon: builder.icon,
             cursor: builder.cursor,
+            nc_hittest: builder.nc_hittest,
             event_rx_id: builder.event_rx.id(),
             parent: builder.parent,
             parent_inner: None,
@@ -453,6 +466,7 @@ impl<Pos, Sz> BuilderProps<Pos, Sz> {
             auto_close: true,
             icon: None,
             cursor: builder.cursor,
+            nc_hittest: builder.nc_hittest,
             event_rx_id: builder.event_rx.id(),
             parent: None,
             parent_inner: Some(builder.parent_inner),
@@ -466,6 +480,7 @@ pub(crate) struct WindowProps {
     pub auto_close: bool,
     pub cursor: Cursor,
     pub parent: Option<HWND>,
+    pub nc_hittest: bool,
 }
 
 fn create_window<Pos, Sz>(
@@ -541,6 +556,7 @@ where
             auto_close: props.auto_close,
             cursor: props.cursor,
             parent: props.parent,
+            nc_hittest: props.nc_hittest,
         };
         Context::register_window(f(hwnd), window_props, props.event_rx_id);
         if props.visiblity {
@@ -1067,6 +1083,7 @@ pub struct InnerWindowBuilder<'a, Rx, Pos = (), Sz = ()> {
     visible_ime_candidate_window: bool,
     accept_drop_files: bool,
     cursor: Cursor,
+    nc_hittest: bool,
 }
 
 impl<'a, Rx> InnerWindowBuilder<'a, Rx> {
@@ -1087,6 +1104,7 @@ impl<'a, Rx> InnerWindowBuilder<'a, Rx> {
             accept_drop_files: false,
             cursor: Context::get_window_props(parent.hwnd(), |props| props.cursor.clone())
                 .unwrap_or_default(),
+            nc_hittest: false,
         }
     }
 }
@@ -1107,6 +1125,7 @@ impl<'a, Rx, Pos, Sz> InnerWindowBuilder<'a, Rx, Pos, Sz> {
             visible_ime_candidate_window: self.visible_ime_candidate_window,
             accept_drop_files: self.accept_drop_files,
             cursor: self.cursor,
+            nc_hittest: self.nc_hittest,
         }
     }
 
@@ -1125,6 +1144,7 @@ impl<'a, Rx, Pos, Sz> InnerWindowBuilder<'a, Rx, Pos, Sz> {
             visible_ime_candidate_window: self.visible_ime_candidate_window,
             accept_drop_files: self.accept_drop_files,
             cursor: self.cursor,
+            nc_hittest: self.nc_hittest,
         }
     }
 
@@ -1149,6 +1169,12 @@ impl<'a, Rx, Pos, Sz> InnerWindowBuilder<'a, Rx, Pos, Sz> {
     #[inline]
     pub fn accept_drop_files(mut self, flag: bool) -> Self {
         self.accept_drop_files = flag;
+        self
+    }
+
+    #[inline]
+    pub fn hook_nc_hittest(mut self, flag: bool) -> Self {
+        self.nc_hittest = flag;
         self
     }
 }

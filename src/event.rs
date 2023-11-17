@@ -1,8 +1,11 @@
 use crate::*;
-use std::cell::RefCell;
+use std::cell::Cell;
 use std::path::PathBuf;
 use tokio::sync::oneshot;
-use windows::Win32::{Foundation::HWND, UI::WindowsAndMessaging::DestroyWindow};
+use windows::Win32::{
+    Foundation::{HWND, LPARAM},
+    UI::WindowsAndMessaging::*,
+};
 
 #[derive(Debug)]
 pub struct Draw {
@@ -90,7 +93,7 @@ pub struct CharInput {
 
 #[derive(Debug)]
 pub struct ImeBeginComposition {
-    position: RefCell<PhysicalPosition<i32>>,
+    position: Cell<PhysicalPosition<i32>>,
     dpi: i32,
     tx: Option<oneshot::Sender<PhysicalPosition<i32>>>,
 }
@@ -98,7 +101,7 @@ pub struct ImeBeginComposition {
 impl ImeBeginComposition {
     pub(crate) fn new(dpi: i32, tx: oneshot::Sender<PhysicalPosition<i32>>) -> Self {
         Self {
-            position: RefCell::new(PhysicalPosition::new(0, 0)),
+            position: Cell::new(PhysicalPosition::new(0, 0)),
             dpi,
             tx: Some(tx),
         }
@@ -109,14 +112,14 @@ impl ImeBeginComposition {
         &self,
         position: impl ToPhysical<i32, Output<i32> = PhysicalPosition<i32>>,
     ) {
-        *self.position.borrow_mut() = position.to_physical(self.dpi);
+        self.position.set(position.to_physical(self.dpi));
     }
 }
 
 impl Drop for ImeBeginComposition {
     #[inline]
     fn drop(&mut self) {
-        self.tx.take().unwrap().send(*self.position.borrow()).ok();
+        self.tx.take().unwrap().send(self.position.get()).ok();
     }
 }
 
@@ -157,6 +160,62 @@ pub struct DpiChanged {
 pub struct DropFiles {
     pub paths: Vec<PathBuf>,
     pub position: PhysicalPosition<i32>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[repr(u32)]
+pub enum NcHitTestValue {
+    Border = HTBORDER,
+    Bottom = HTBOTTOM,
+    BottomLeft = HTBOTTOMLEFT,
+    BottomRight = HTBOTTOMRIGHT,
+    Left = HTLEFT,
+    Right = HTRIGHT,
+    Top = HTTOP,
+    TopLeft = HTTOPLEFT,
+    TopRight = HTTOPRIGHT,
+    Caption = HTCAPTION,
+    Client = HTCLIENT,
+    Size = HTSIZE,
+    Help = HTHELP,
+    HScroll = HTHSCROLL,
+    VScroll = HTVSCROLL,
+    Menu = HTMENU,
+    MaxButton = HTMAXBUTTON,
+    MinButton = HTMINBUTTON,
+    CloseButton = HTCLOSE,
+    SysMenu = HTSYSMENU,
+    Error = HTERROR as u32,
+    Transparent = HTTRANSPARENT as u32,
+}
+
+#[derive(Debug)]
+pub struct NcHitTest {
+    pub position: PhysicalPosition<i32>,
+    value: Cell<Option<NcHitTestValue>>,
+    tx: Option<oneshot::Sender<Option<NcHitTestValue>>>,
+}
+
+impl NcHitTest {
+    pub(crate) fn new(lparam: LPARAM, tx: oneshot::Sender<Option<NcHitTestValue>>) -> Self {
+        let position = lparam_to_point(lparam);
+        Self {
+            position,
+            value: Cell::new(None),
+            tx: Some(tx),
+        }
+    }
+
+    #[inline]
+    pub fn set(&self, value: Option<NcHitTestValue>) {
+        self.value.set(value);
+    }
+}
+
+impl Drop for NcHitTest {
+    fn drop(&mut self) {
+        self.tx.take().unwrap().send(self.value.get()).ok();
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -213,6 +272,7 @@ pub enum Event {
     Restored(Restored),
     DpiChanged(DpiChanged),
     DropFiles(DropFiles),
+    NcHitTest(NcHitTest),
     CloseRequest(CloseRequest),
     Closed,
     Other(Other),

@@ -376,6 +376,19 @@ unsafe fn on_nc_create(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     DefWindowProcW(hwnd, WM_NCCREATE, wparam, lparam)
 }
 
+unsafe fn on_nc_hittest(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+    let hook = Context::get_window_props(hwnd, |props| props.nc_hittest).unwrap();
+    if !hook {
+        return DefWindowProcW(hwnd, WM_NCHITTEST, wparam, lparam);
+    }
+    let (tx, rx) = oneshot::channel();
+    Context::send_event(hwnd, Event::NcHitTest(event::NcHitTest::new(lparam, tx)));
+    match rx.blocking_recv() {
+        Ok(Some(value)) => LRESULT(value as isize),
+        _ => DefWindowProcW(hwnd, WM_NCHITTEST, wparam, lparam),
+    }
+}
+
 unsafe fn on_close(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     let auto_close = Context::get_window_props(hwnd, |props| props.auto_close).unwrap();
     if auto_close {
@@ -488,6 +501,7 @@ pub(crate) extern "system" fn window_proc(
             WM_GETDPISCALEDSIZE => on_get_dpi_scaled_size(hwnd, wparam, lparam),
             WM_DROPFILES => on_drop_files(hwnd, wparam, lparam),
             WM_NCCREATE => on_nc_create(hwnd, wparam, lparam),
+            WM_NCHITTEST => on_nc_hittest(hwnd, wparam, lparam),
             WM_CLOSE => on_close(hwnd, wparam, lparam),
             WM_DESTROY => on_destroy(hwnd),
             _ => {

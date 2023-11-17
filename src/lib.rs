@@ -61,7 +61,7 @@ pub use dialog::*;
 pub use dialog::{FileDialogOptions, FileOpenDialog};
 pub use error::*;
 #[doc(inline)]
-pub use event::{Event, ResizingEdge};
+pub use event::{Event, NcHitTestValue, ResizingEdge};
 pub use geometry::*;
 pub use resource::*;
 #[doc(inline)]
