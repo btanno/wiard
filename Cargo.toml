@@ -2,28 +2,58 @@
 name = "wiard"
 version = "0.1.0"
 edition = "2021"
+description = "Window handling library for Windows in Rust"
+repository = "https://github.com/btanno/wiard"
+license = "MIT"
+readme = "README.md"
+categories = ["gui"]
+keywords = ["gui", "windows"]
 
 [features]
 serde = ["dep:serde"]
 
 [dependencies]
+anyhow = { version = "1.0.75", features = ["backtrace"] }
+env_logger = "0.10.1"
+log = "0.4.20"
+num = { version = "0.4", features = ["serde"] }
 raw-window-handle = "0.6"
 serde = { version = "1", features = ["derive"], optional = true }
 thiserror = "1"
+tokio = { version = "1", features = ["sync"] }
 
 [dependencies.windows]
-version = "0.51"
+version = "0.52"
 features = [
+    "implement",
     "Win32_Foundation",
     "Win32_Graphics_Gdi",
+    "Win32_Graphics_Dwm",
     "Win32_UI_HiDpi",
     "Win32_UI_Input",
     "Win32_UI_Input_KeyboardAndMouse",
     "Win32_UI_Shell",
     "Win32_UI_Shell_Common",
+    "Win32_UI_Controls",
     "Win32_UI_WindowsAndMessaging",
+    "Win32_UI_Input_Ime",
+    "Win32_UI_TextServices",
     "Win32_Storage_FileSystem",
-    "Win32_System_WindowsProgramming",
+    "Win32_System_Com",
+    "Win32_System_Threading",
     "Win32_System_LibraryLoader",
+    "Win32_System_WindowsProgramming",
     "Win32_Globalization",
+    "Win32_System_Registry",
+]
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full"] }
+
+[dev-dependencies.windows]
+version = "0.52"
+features = [
+    "Win32_Graphics_Direct2D",
+    "Win32_Graphics_Direct2D_Common",
+    "Win32_Graphics_Dxgi_Common",
 ]
