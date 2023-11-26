@@ -167,3 +167,13 @@ impl Context {
         event_txs.clear();
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn window_is_none() {
+        assert!(Context::window_is_none(HWND(0)));
+    }
+}
