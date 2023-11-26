@@ -106,7 +106,7 @@ impl Context {
 
     pub fn window_is_none(hwnd: HWND) -> bool {
         let window_map = get_context().window_map.lock().unwrap();
-        window_map.contains_key(&hwnd.0)
+        !window_map.contains_key(&hwnd.0)
     }
 
     pub fn send_event(hwnd: HWND, event: Event) {
@@ -165,5 +165,15 @@ impl Context {
         ime::shutdown_text_service();
         let mut event_txs = get_context().event_txs.lock().unwrap();
         event_txs.clear();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn window_is_none() {
+        assert!(Context::window_is_none(HWND(0)));
     }
 }
