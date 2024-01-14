@@ -41,12 +41,13 @@
 //! wiard use `WM_APP`. Don't post directly `WM_APP` to wiard's UI thread.
 //!
 
+pub use gdueiv::*;
+
 mod context;
 mod device;
 mod dialog;
 mod error;
 pub mod event;
-mod geometry;
 pub mod ime;
 mod procedure;
 mod resource;
@@ -55,6 +56,7 @@ mod ui_thread;
 mod utility;
 mod window;
 
+
 use context::*;
 pub use device::*;
 pub use dialog::*;
@@ -62,7 +64,6 @@ pub use dialog::{FileDialogOptions, FileOpenDialog};
 pub use error::*;
 #[doc(inline)]
 pub use event::{Event, NcHitTestValue, ResizingEdge};
-pub use geometry::*;
 pub use resource::*;
 #[doc(inline)]
 pub use style::*;
