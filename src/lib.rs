@@ -41,7 +41,7 @@
 //! wiard use `WM_APP`. Don't post directly `WM_APP` to wiard's UI thread.
 //!
 
-pub use gdueiv::*;
+pub use gedv::*;
 
 mod context;
 mod device;
