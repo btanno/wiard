@@ -1,6 +1,6 @@
 use crate::*;
 use std::cell::{Cell, OnceCell, RefCell};
-use windows::core::ComInterface;
+use windows::core::Interface;
 use windows::Win32::{
     Foundation::{BOOL, HWND, POINT, RECT},
     Globalization::*,

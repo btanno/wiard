@@ -1,7 +1,7 @@
 use crate::*;
 use std::path::PathBuf;
 use tokio::sync::oneshot;
-use windows::core::{ComInterface, HSTRING, PCWSTR, PWSTR};
+use windows::core::{Interface, HSTRING, PCWSTR, PWSTR};
 use windows::Win32::Foundation::ERROR_CANCELLED;
 use windows::Win32::{System::Com::*, UI::Shell::Common::*, UI::Shell::*};
 
@@ -164,7 +164,7 @@ struct Params<W> {
 unsafe fn show_dialog<W, T>(dialog: &T, params: Params<W>) -> Result<()>
 where
     W: IsWindow,
-    T: ComInterface,
+    T: Interface,
 {
     let dialog: IFileDialog = dialog.cast().unwrap();
     if let Some(title) = params.title {
