@@ -13,10 +13,10 @@ keywords = ["gui", "windows"]
 serde = ["dep:serde"]
 
 [dependencies]
-anyhow = { version = "1.0.80", features = ["backtrace"] }
-env_logger = "0.11.2"
-gedv = { version = "0.2.0", features = ["serde"] }
-log = "0.4.20"
+anyhow = { version = "1.0", features = ["backtrace"] }
+env_logger = "0.11"
+gedv = { version = "0.2", features = ["serde"] }
+log = "0.4"
 num = { version = "0.4", features = ["serde"] }
 raw-window-handle = "0.6"
 serde = { version = "1", features = ["derive"], optional = true }
@@ -24,7 +24,7 @@ thiserror = "1"
 tokio = { version = "1", features = ["sync"] }
 
 [dependencies.windows]
-version = "0.53"
+version = "0.54"
 features = [
     "implement",
     "Win32_Foundation",
@@ -52,7 +52,7 @@ features = [
 tokio = { version = "1", features = ["full"] }
 
 [dev-dependencies.windows]
-version = "0.53"
+version = "0.54"
 features = [
     "Win32_Graphics_Direct2D",
     "Win32_Graphics_Direct2D_Common",
