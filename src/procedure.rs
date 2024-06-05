@@ -33,10 +33,10 @@ pub(crate) fn get_unwind() -> Option<Box<dyn Any + Send>> {
 
 unsafe fn on_paint(hwnd: HWND) -> LRESULT {
     let mut rc = RECT::default();
-    GetUpdateRect(hwnd, Some(&mut rc), false);
+    let _ = GetUpdateRect(hwnd, Some(&mut rc), false);
     let mut ps = PAINTSTRUCT::default();
     let _hdc = BeginPaint(hwnd, &mut ps);
-    EndPaint(hwnd, &ps);
+    let _ = EndPaint(hwnd, &ps);
     let invalidate_rect = PhysicalRect::new(rc.left, rc.top, rc.right, rc.bottom);
     Context::send_event(hwnd, Event::Draw(event::Draw { invalidate_rect }));
     LRESULT(0)
@@ -354,7 +354,7 @@ unsafe fn on_drop_files(hwnd: HWND, wparam: WPARAM, _lparam: LPARAM) -> LRESULT 
         paths.push(path);
     }
     let mut position = POINT::default();
-    DragQueryPoint(hdrop, &mut position);
+    let _ = DragQueryPoint(hdrop, &mut position);
     Context::send_event(
         hwnd,
         Event::DropFiles(event::DropFiles {

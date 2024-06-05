@@ -56,7 +56,6 @@ mod ui_thread;
 mod utility;
 mod window;
 
-
 use context::*;
 pub use device::*;
 pub use dialog::*;

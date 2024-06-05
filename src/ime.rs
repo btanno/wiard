@@ -20,7 +20,7 @@ impl ImmContext {
     pub fn new(hwnd: HWND) -> Self {
         unsafe {
             let himc = ImmCreateContext();
-            ImmAssociateContextEx(hwnd, himc, IACE_CHILDREN);
+            let _ = ImmAssociateContextEx(hwnd, himc, IACE_CHILDREN);
             Self {
                 hwnd,
                 himc,
@@ -32,7 +32,7 @@ impl ImmContext {
     pub fn enable(&self) {
         if !self.enabled.get() {
             unsafe {
-                ImmAssociateContextEx(self.hwnd, self.himc, IACE_CHILDREN);
+                let _ = ImmAssociateContextEx(self.hwnd, self.himc, IACE_CHILDREN);
             }
             self.enabled.set(true);
         }
@@ -41,7 +41,7 @@ impl ImmContext {
     pub fn disable(&self) {
         if self.enabled.get() {
             unsafe {
-                ImmAssociateContextEx(self.hwnd, HIMC(0), IACE_IGNORENOCONTEXT);
+                let _ = ImmAssociateContextEx(self.hwnd, HIMC(0), IACE_IGNORENOCONTEXT);
             }
             self.enabled.set(false);
         }
@@ -51,8 +51,8 @@ impl ImmContext {
 impl Drop for ImmContext {
     fn drop(&mut self) {
         unsafe {
-            ImmAssociateContextEx(self.hwnd, HIMC(0), IACE_DEFAULT);
-            ImmDestroyContext(self.himc);
+            let _ = ImmAssociateContextEx(self.hwnd, HIMC(0), IACE_DEFAULT);
+            let _ = ImmDestroyContext(self.himc);
         }
     }
 }
@@ -102,7 +102,7 @@ impl Imc {
             ..Default::default()
         };
         unsafe {
-            ImmSetCandidateWindow(self.himc, &form);
+            let _ = ImmSetCandidateWindow(self.himc, &form);
         }
         if !enable_exclude_rect {
             let form = CANDIDATEFORM {
@@ -117,7 +117,7 @@ impl Imc {
                 },
             };
             unsafe {
-                ImmSetCandidateWindow(self.himc, &form);
+                let _ = ImmSetCandidateWindow(self.himc, &form);
             }
         }
     }
@@ -200,7 +200,7 @@ impl Imc {
 impl Drop for Imc {
     fn drop(&mut self) {
         unsafe {
-            ImmReleaseContext(self.hwnd, self.himc);
+            let _ = ImmReleaseContext(self.hwnd, self.himc);
         }
     }
 }
@@ -241,7 +241,7 @@ fn ui_element_mgr() -> ITfUIElementMgr {
     thread_mgr().cast().unwrap()
 }
 
-#[windows::core::implement(ITfUIElementSink)]
+#[windows_core::implement(ITfUIElementSink)]
 struct UiElementSink;
 
 impl UiElementSink {

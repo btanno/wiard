@@ -18,4 +18,3 @@ impl MouseState {
 
 /// This value is a multiple of wheel value.
 pub const WHEEL_DELTA: i32 = windows::Win32::UI::WindowsAndMessaging::WHEEL_DELTA as i32;
-
