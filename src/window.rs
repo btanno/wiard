@@ -562,7 +562,7 @@ where
         };
         Context::register_window(f(hwnd), window_props, props.event_rx_id);
         if props.visiblity {
-            ShowWindow(hwnd, SW_SHOW);
+            let _ = ShowWindow(hwnd, SW_SHOW);
         }
         Ok(hwnd)
     }
@@ -750,35 +750,35 @@ mod methods {
     #[inline]
     pub fn show(hwnd: HWND) {
         unsafe {
-            ShowWindowAsync(hwnd, SW_SHOW);
+            let _ = ShowWindowAsync(hwnd, SW_SHOW);
         }
     }
 
     #[inline]
     pub fn hide(hwnd: HWND) {
         unsafe {
-            ShowWindowAsync(hwnd, SW_HIDE);
+            let _ = ShowWindowAsync(hwnd, SW_HIDE);
         }
     }
 
     #[inline]
     pub fn minimize(hwnd: HWND) {
         unsafe {
-            ShowWindowAsync(hwnd, SW_MINIMIZE);
+            let _ = ShowWindowAsync(hwnd, SW_MINIMIZE);
         }
     }
 
     #[inline]
     pub fn maximize(hwnd: HWND) {
         unsafe {
-            ShowWindowAsync(hwnd, SW_SHOWMAXIMIZED);
+            let _ = ShowWindowAsync(hwnd, SW_SHOWMAXIMIZED);
         }
     }
 
     #[inline]
     pub fn restore(hwnd: HWND) {
         unsafe {
-            ShowWindowAsync(hwnd, SW_RESTORE);
+            let _ = ShowWindowAsync(hwnd, SW_RESTORE);
         }
     }
 
@@ -797,7 +797,7 @@ mod methods {
         UiThread::send_task(move || unsafe {
             let rc: Option<RECT> = invalidate_rect.map(|rc| rc.into());
             let p = rc.as_ref().map(|p| p as *const RECT);
-            RedrawWindow(hwnd, p, None, RDW_INVALIDATE);
+            let _ = RedrawWindow(hwnd, p, None, RDW_INVALIDATE);
         });
     }
 }
@@ -1003,7 +1003,7 @@ impl AsyncWindow {
         let hwnd = self.hwnd;
         methods::set_cursor(hwnd, cursor);
     }
-    
+
     #[inline]
     pub fn redraw(&self, invalidate_rect: Option<PhysicalRect<i32>>) {
         methods::redraw(self.hwnd, invalidate_rect);

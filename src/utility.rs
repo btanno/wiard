@@ -104,7 +104,8 @@ pub fn is_dark_mode() -> bool {
             Some(&mut ty),
             Some(&mut data as *mut u32 as *mut std::ffi::c_void),
             Some(&mut size),
-        ).ok();
+        )
+        .ok();
         if let Err(e) = ret {
             log::error!("{e}");
             return false;

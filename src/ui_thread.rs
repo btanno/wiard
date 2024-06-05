@@ -50,7 +50,7 @@ impl Thread {
             .name("wiard UiThread".into())
             .spawn(move || unsafe {
                 CoInitializeEx(None, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE).unwrap();
-                IsGUIThread(true);
+                let _ = IsGUIThread(true);
                 Context::init().unwrap();
                 block_tx.send(()).ok();
                 std::mem::drop(block_tx);
@@ -74,7 +74,7 @@ impl Thread {
                             }
                         }
                         _ => {
-                            TranslateMessage(&msg);
+                            let _ = TranslateMessage(&msg);
                             DispatchMessageW(&msg);
                             if let Some(e) = procedure::get_unwind() {
                                 Context::send_panic(e);
