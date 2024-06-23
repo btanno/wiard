@@ -24,10 +24,10 @@ thiserror = "1"
 tokio = { version = "1", features = ["sync"] }
 
 [dependencies.windows-core]
-version = "0.56"
+version = "0.57"
 
 [dependencies.windows]
-version = "0.56"
+version = "0.57"
 features = [
     "implement",
     "Win32_Foundation",
@@ -55,7 +55,7 @@ features = [
 tokio = { version = "1", features = ["full"] }
 
 [dev-dependencies.windows]
-version = "0.56"
+version = "0.57"
 features = [
     "Win32_Graphics_Direct2D",
     "Win32_Graphics_Direct2D_Common",
