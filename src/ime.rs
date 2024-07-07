@@ -3,27 +3,39 @@ use std::cell::{Cell, OnceCell, RefCell};
 use windows::core::Interface;
 use windows::Win32::{
     Foundation::{BOOL, HWND, POINT, RECT},
-    Globalization::*,
     System::Com::*,
     UI::Input::Ime::*,
     UI::Input::KeyboardAndMouse::GetFocus,
     UI::TextServices::*,
 };
 
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+struct ImcHandle(isize);
+
+impl ImcHandle {
+    fn new(himc: HIMC) -> Self {
+        Self(himc.0 as isize)
+    }
+
+    fn as_himc(&self) -> HIMC {
+        HIMC(self.0 as *mut _)
+    }
+}
+
 pub(crate) struct ImmContext {
-    hwnd: HWND,
-    himc: HIMC,
+    window_handle: WindowHandle,
+    imc_handle: ImcHandle,
     enabled: Cell<bool>,
 }
 
 impl ImmContext {
-    pub fn new(hwnd: HWND) -> Self {
+    pub fn new(window_handle: WindowHandle) -> Self {
         unsafe {
             let himc = ImmCreateContext();
-            let _ = ImmAssociateContextEx(hwnd, himc, IACE_CHILDREN);
+            let _ = ImmAssociateContextEx(window_handle.as_hwnd(), himc, IACE_CHILDREN);
             Self {
-                hwnd,
-                himc,
+                window_handle,
+                imc_handle: ImcHandle::new(himc),
                 enabled: Cell::new(true),
             }
         }
@@ -32,7 +44,11 @@ impl ImmContext {
     pub fn enable(&self) {
         if !self.enabled.get() {
             unsafe {
-                let _ = ImmAssociateContextEx(self.hwnd, self.himc, IACE_CHILDREN);
+                let _ = ImmAssociateContextEx(
+                    self.window_handle.as_hwnd(),
+                    self.imc_handle.as_himc(),
+                    IACE_CHILDREN,
+                );
             }
             self.enabled.set(true);
         }
@@ -41,7 +57,11 @@ impl ImmContext {
     pub fn disable(&self) {
         if self.enabled.get() {
             unsafe {
-                let _ = ImmAssociateContextEx(self.hwnd, HIMC(0), IACE_IGNORENOCONTEXT);
+                let _ = ImmAssociateContextEx(
+                    self.window_handle.as_hwnd(),
+                    HIMC::default(),
+                    IACE_IGNORENOCONTEXT,
+                );
             }
             self.enabled.set(false);
         }
@@ -51,8 +71,9 @@ impl ImmContext {
 impl Drop for ImmContext {
     fn drop(&mut self) {
         unsafe {
-            let _ = ImmAssociateContextEx(self.hwnd, HIMC(0), IACE_DEFAULT);
-            let _ = ImmDestroyContext(self.himc);
+            let _ =
+                ImmAssociateContextEx(self.window_handle.as_hwnd(), HIMC::default(), IACE_DEFAULT);
+            let _ = ImmDestroyContext(self.imc_handle.as_himc());
         }
     }
 }
@@ -252,15 +273,16 @@ impl UiElementSink {
 }
 
 #[allow(non_snake_case)]
-impl ITfUIElementSink_Impl for UiElementSink {
+impl ITfUIElementSink_Impl for UiElementSink_Impl {
     fn BeginUIElement(&self, _id: u32, show: *mut BOOL) -> windows::core::Result<()> {
         let hwnd = unsafe { GetFocus() };
-        if hwnd == HWND(0) {
+        if hwnd.is_invalid() {
             return Ok(());
         }
-        let visibility =
-            Context::get_window_props(hwnd, |props| props.visible_ime_candidate_window)
-                .unwrap_or(true);
+        let visibility = Context::get_window_props(WindowHandle::new(hwnd), |props| {
+            props.visible_ime_candidate_window
+        })
+        .unwrap_or(true);
         unsafe {
             *show.as_mut().unwrap() = visibility.into();
         }
@@ -272,7 +294,7 @@ impl ITfUIElementSink_Impl for UiElementSink {
 
     fn UpdateUIElement(&self, id: u32) -> windows::core::Result<()> {
         let hwnd = unsafe { GetFocus() };
-        if hwnd == HWND(0) {
+        if hwnd == HWND::default() {
             return Ok(());
         }
         unsafe {
@@ -284,7 +306,7 @@ impl ITfUIElementSink_Impl for UiElementSink {
                 .map(|i| candidate_list.GetString(i).map(|s| s.to_string()))
                 .collect::<windows::core::Result<Vec<_>>>()?;
             Context::send_event(
-                hwnd,
+                WindowHandle::new(hwnd),
                 Event::ImeUpdateCandidateList(event::ImeUpdateCandidateList { selection, items }),
             );
         }
@@ -293,14 +315,15 @@ impl ITfUIElementSink_Impl for UiElementSink {
 
     fn EndUIElement(&self, _id: u32) -> windows::core::Result<()> {
         let hwnd = unsafe { GetFocus() };
-        if hwnd == HWND(0) {
+        if hwnd == HWND::default() {
             return Ok(());
         }
+        let handle = WindowHandle::new(hwnd);
         let visibility =
-            Context::get_window_props(hwnd, |props| props.visible_ime_candidate_window)
+            Context::get_window_props(handle, |props| props.visible_ime_candidate_window)
                 .unwrap_or(true);
         if !visibility {
-            Context::send_event(hwnd, Event::ImeEndCandidateList);
+            Context::send_event(handle, Event::ImeEndCandidateList);
         }
         Ok(())
     }

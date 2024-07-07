@@ -6,7 +6,7 @@ use std::sync::{
     Mutex, OnceLock,
 };
 use windows::Win32::{
-    Foundation::{HWND, LPARAM, WPARAM},
+    Foundation::{LPARAM, WPARAM},
     UI::WindowsAndMessaging::{PostMessageW, WM_CLOSE},
 };
 
@@ -14,11 +14,11 @@ pub(crate) struct Object {
     pub kind: WindowKind,
     pub event_tx: crate::window::Sender<RecvEventOrPanic>,
     pub props: WindowProps,
-    pub children: Vec<HWND>,
+    pub children: Vec<WindowHandle>,
 }
 
 pub(crate) struct ContextImpl {
-    pub window_map: Mutex<HashMap<isize, Object>>,
+    pub window_map: Mutex<HashMap<WindowHandle, Object>>,
     pub event_txs: Mutex<HashMap<u64, crate::window::Sender<RecvEventOrPanic>>>,
     panic_receiver: AtomicU64,
 }
@@ -64,10 +64,10 @@ impl Context {
             event_txs.get(&event_rx_id).unwrap().clone()
         };
         let mut window_map = ctx.window_map.lock().unwrap();
-        let hwnd = kind.hwnd();
+        let window_handle = kind.window_handle();
         let parent = props.parent;
         window_map.insert(
-            hwnd.0,
+            window_handle,
             Object {
                 kind,
                 props,
@@ -76,19 +76,19 @@ impl Context {
             },
         );
         if let Some(parent) = parent {
-            if let Some(parent_obj) = window_map.get_mut(&parent.0) {
-                parent_obj.children.push(hwnd);
+            if let Some(parent_obj) = window_map.get_mut(&parent) {
+                parent_obj.children.push(window_handle);
             }
         }
     }
 
-    pub fn remove_window(hwnd: HWND) -> Option<Object> {
+    pub fn remove_window(handle: WindowHandle) -> Option<Object> {
         let mut window_map = get_context().window_map.lock().unwrap();
-        let obj = window_map.remove(&hwnd.0);
+        let obj = window_map.remove(&handle);
         if let Some(obj) = obj.as_ref() {
             for child in &obj.children {
                 unsafe {
-                    PostMessageW(*child, WM_CLOSE, WPARAM(0), LPARAM(0)).ok();
+                    PostMessageW(child.as_hwnd(), WM_CLOSE, WPARAM(0), LPARAM(0)).ok();
                 }
             }
         }
@@ -104,14 +104,14 @@ impl Context {
         }
     }
 
-    pub fn window_is_none(hwnd: HWND) -> bool {
+    pub fn window_is_none(handle: WindowHandle) -> bool {
         let window_map = get_context().window_map.lock().unwrap();
-        !window_map.contains_key(&hwnd.0)
+        !window_map.contains_key(&handle)
     }
 
-    pub fn send_event(hwnd: HWND, event: Event) {
+    pub fn send_event(handle: WindowHandle, event: Event) {
         let window_map = get_context().window_map.lock().unwrap();
-        let Some(object) = window_map.get(&hwnd.0) else {
+        let Some(object) = window_map.get(&handle) else {
             return;
         };
         object
@@ -120,21 +120,21 @@ impl Context {
             .ok();
     }
 
-    pub fn get_window_props<F, T>(hwnd: HWND, f: F) -> Option<T>
+    pub fn get_window_props<F, T>(handle: WindowHandle, f: F) -> Option<T>
     where
         F: FnOnce(&WindowProps) -> T,
     {
         let window_map = get_context().window_map.lock().unwrap();
-        let object = window_map.get(&hwnd.0)?;
+        let object = window_map.get(&handle)?;
         Some(f(&object.props))
     }
 
-    pub fn set_window_props<F>(hwnd: HWND, f: F)
+    pub fn set_window_props<F>(handle: WindowHandle, f: F)
     where
         F: FnOnce(&mut WindowProps),
     {
         let mut window_map = get_context().window_map.lock().unwrap();
-        let object = window_map.get_mut(&hwnd.0).unwrap();
+        let object = window_map.get_mut(&handle).unwrap();
         f(&mut object.props)
     }
 
@@ -174,6 +174,6 @@ mod tests {
 
     #[test]
     fn window_is_none() {
-        assert!(Context::window_is_none(HWND(0)));
+        assert!(Context::window_is_none(WindowHandle::default()));
     }
 }

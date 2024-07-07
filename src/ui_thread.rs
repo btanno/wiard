@@ -56,7 +56,7 @@ impl Thread {
                 std::mem::drop(block_tx);
                 let mut msg = MSG::default();
                 let ret = loop {
-                    let ret = GetMessageW(&mut msg, HWND(0), 0, 0);
+                    let ret = GetMessageW(&mut msg, HWND::default(), 0, 0);
                     if ret == BOOL(0) || ret == BOOL(-1) {
                         Context::shutdown();
                         break msg.wParam.0 as u32;
@@ -96,7 +96,7 @@ impl Thread {
 
     fn post_message(&self, msg: u32, wparam: WPARAM, lparam: LPARAM) {
         unsafe {
-            let th = GetThreadId(HANDLE(self.th.as_ref().unwrap().as_raw_handle() as isize));
+            let th = GetThreadId(HANDLE(self.th.as_ref().unwrap().as_raw_handle()));
             PostThreadMessageW(th, msg, wparam, lparam).ok();
         }
     }

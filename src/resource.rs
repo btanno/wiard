@@ -64,7 +64,7 @@ impl Icon {
                 Icon::File(path) => {
                     let path = path.to_string_lossy();
                     let handle = LoadImageW(
-                        HMODULE(0),
+                        HMODULE::default(),
                         &HSTRING::from(path.as_ref()),
                         IMAGE_ICON,
                         cx,
@@ -126,7 +126,7 @@ impl Cursor {
 
     pub(crate) fn set(&self) {
         unsafe {
-            SetCursor(LoadCursorW(HINSTANCE(0), self.system_defined_name()).unwrap());
+            SetCursor(LoadCursorW(HINSTANCE::default(), self.system_defined_name()).unwrap());
         }
     }
 }

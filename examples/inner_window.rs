@@ -29,7 +29,7 @@ fn main() -> anyhow::Result<()> {
         else {
             unreachable!()
         };
-        let hwnd = HWND(handle.hwnd.into());
+        let hwnd = HWND(isize::from(handle.hwnd) as *mut _);
         d2d1_factory.CreateHwndRenderTarget(
             &D2D1_RENDER_TARGET_PROPERTIES {
                 r#type: D2D1_RENDER_TARGET_TYPE_DEFAULT,
