@@ -10,12 +10,6 @@ pub enum Error {
     UiThreadClosed,
 }
 
-impl Error {
-    pub(crate) fn from_win32() -> Self {
-        windows::core::Error::from_win32().into()
-    }
-}
-
 /// This type is `Result<T, wiard::Error>`.
 pub type Result<T> = ::core::result::Result<T, Error>;
 

@@ -38,12 +38,16 @@ unsafe fn on_paint(hwnd: HWND) -> LRESULT {
     let _hdc = BeginPaint(hwnd, &mut ps);
     let _ = EndPaint(hwnd, &ps);
     let invalidate_rect = PhysicalRect::new(rc.left, rc.top, rc.right, rc.bottom);
-    Context::send_event(hwnd, Event::Draw(event::Draw { invalidate_rect }));
+    Context::send_event(
+        WindowHandle::new(hwnd),
+        Event::Draw(event::Draw { invalidate_rect }),
+    );
     LRESULT(0)
 }
 
 unsafe fn on_mouse_move(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     let entered = ENTERED.with(|entered| *entered.borrow());
+    let handle = WindowHandle::new(hwnd);
     if entered.is_none() {
         TrackMouseEvent(&mut TRACKMOUSEEVENT {
             cbSize: std::mem::size_of::<TRACKMOUSEEVENT>() as u32,
@@ -54,14 +58,14 @@ unsafe fn on_mouse_move(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
         .ok();
         ENTERED.with(|entered| *entered.borrow_mut() = Some(hwnd));
         Context::send_event(
-            hwnd,
+            handle,
             event::Event::CursorEntered(event::CursorEntered {
                 mouse_state: MouseState::from_params(wparam, lparam),
             }),
         );
     } else {
         Context::send_event(
-            hwnd,
+            handle,
             event::Event::CursorMoved(event::CursorMoved {
                 mouse_state: MouseState::from_params(wparam, lparam),
             }),
@@ -74,7 +78,8 @@ unsafe fn on_set_cursor(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     if loword(lparam.0 as i32) != HTCLIENT as i16 {
         return DefWindowProcW(hwnd, WM_SETCURSOR, wparam, lparam);
     }
-    let cursor = Context::get_window_props(hwnd, |props| props.cursor.clone()).unwrap();
+    let cursor =
+        Context::get_window_props(WindowHandle::new(hwnd), |props| props.cursor.clone()).unwrap();
     cursor.set();
     LRESULT(0)
 }
@@ -86,7 +91,7 @@ unsafe fn on_mouse_leave(hwnd: HWND, wparam: WPARAM, _lparam: LPARAM) -> LRESULT
     let mut position = POINT::default();
     GetCursorPos(&mut position).ok();
     Context::send_event(
-        hwnd,
+        WindowHandle::new(hwnd),
         Event::CursorLeft(event::CursorLeft {
             mouse_state: MouseState {
                 position: position.into(),
@@ -113,7 +118,7 @@ unsafe fn on_mouse_input(
         }
     }
     Context::send_event(
-        hwnd,
+        WindowHandle::new(hwnd),
         Event::MouseInput(event::MouseInput {
             button,
             button_state,
@@ -131,7 +136,7 @@ unsafe fn on_mouse_wheel(
 ) -> LRESULT {
     let delta = hiword(wparam.0 as i32);
     Context::send_event(
-        hwnd,
+        WindowHandle::new(hwnd),
         Event::MouseWheel(event::MouseWheel {
             axis,
             distance: delta as i32,
@@ -146,7 +151,7 @@ unsafe fn on_key_input(hwnd: HWND, key_state: KeyState, wparam: WPARAM, lparam: 
     let scan_code = ScanCode(((lparam.0 >> 16) & 0x7f) as u32);
     let prev_pressed = (lparam.0 >> 30) & 0x01 != 0;
     Context::send_event(
-        hwnd,
+        WindowHandle::new(hwnd),
         Event::KeyInput(event::KeyInput {
             key_code: KeyCode::new(vkey, scan_code),
             key_state,
@@ -158,7 +163,10 @@ unsafe fn on_key_input(hwnd: HWND, key_state: KeyState, wparam: WPARAM, lparam: 
 
 unsafe fn on_char(hwnd: HWND, wparam: WPARAM, _lparam: LPARAM) -> LRESULT {
     if let Some(c) = char::from_u32(wparam.0 as u32) {
-        Context::send_event(hwnd, Event::CharInput(event::CharInput { c }));
+        Context::send_event(
+            WindowHandle::new(hwnd),
+            Event::CharInput(event::CharInput { c }),
+        );
     }
     LRESULT(0)
 }
@@ -167,8 +175,10 @@ unsafe fn on_ime_set_context(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> LRES
     let lparam = {
         let mut value = lparam.0 as u32;
         value &= !ISC_SHOWUICOMPOSITIONWINDOW;
-        let candidate =
-            Context::get_window_props(hwnd, |props| props.visible_ime_candidate_window).unwrap();
+        let candidate = Context::get_window_props(WindowHandle::new(hwnd), |props| {
+            props.visible_ime_candidate_window
+        })
+        .unwrap();
         if !candidate {
             value &= !ISC_SHOWUIALLCANDIDATEWINDOW;
         }
@@ -181,7 +191,7 @@ unsafe fn on_ime_start_composition(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -
     let dpi = GetDpiForWindow(hwnd) as i32;
     let (tx, rx) = oneshot::channel::<PhysicalPosition<i32>>();
     Context::send_event(
-        hwnd,
+        WindowHandle::new(hwnd),
         Event::ImeBeginComposition(event::ImeBeginComposition::new(dpi, tx)),
     );
     if let Ok(position) = rx.blocking_recv() {
@@ -204,7 +214,10 @@ unsafe fn on_ime_composition(hwnd: HWND, _wparam: WPARAM, _lparam: LPARAM) -> LR
         clauses,
         cursor_position: imc.get_cursor_position(),
     };
-    Context::send_event(hwnd, Event::ImeUpdateComposition(composition));
+    Context::send_event(
+        WindowHandle::new(hwnd),
+        Event::ImeUpdateComposition(composition),
+    );
     LRESULT(0)
 }
 
@@ -212,7 +225,7 @@ unsafe fn on_ime_end_composition(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> 
     let imc = ime::Imc::get(hwnd);
     let result = imc.get_composition_result();
     Context::send_event(
-        hwnd,
+        WindowHandle::new(hwnd),
         Event::ImeEndComposition(event::ImeEndComposition { result }),
     );
     DefWindowProcW(hwnd, WM_IME_ENDCOMPOSITION, wparam, lparam)
@@ -243,22 +256,26 @@ unsafe fn on_sizing(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
         WMSZ_BOTTOMRIGHT => ResizingEdge::BottomRight,
         _ => unreachable!(),
     };
-    Context::send_event(hwnd, Event::Resizing(event::Resizing { size, edge }));
+    Context::send_event(
+        WindowHandle::new(hwnd),
+        Event::Resizing(event::Resizing { size, edge }),
+    );
     DefWindowProcW(hwnd, WM_SIZING, wparam, lparam)
 }
 
 unsafe fn on_size(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+    let handle = WindowHandle::new(hwnd);
     match wparam.0 as u32 {
         SIZE_MINIMIZED => {
-            Context::send_event(hwnd, Event::Minizmized);
+            Context::send_event(handle, Event::Minizmized);
         }
         SIZE_MAXIMIZED => {
             let size = lparam_to_size(lparam);
-            Context::send_event(hwnd, Event::Maximized(event::Maximized { size }));
+            Context::send_event(handle, Event::Maximized(event::Maximized { size }));
         }
         SIZE_RESTORED => {
             let size = lparam_to_size(lparam);
-            Context::send_event(hwnd, Event::Restored(event::Restored { size }));
+            Context::send_event(handle, Event::Restored(event::Restored { size }));
         }
         _ => {}
     }
@@ -269,7 +286,7 @@ unsafe fn on_window_pos_changed(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> L
     let pos = (lparam.0 as *const WINDOWPOS).as_ref().unwrap();
     if pos.flags.0 & SWP_NOMOVE.0 == 0 {
         Context::send_event(
-            hwnd,
+            WindowHandle::new(hwnd),
             Event::Moved(event::Moved {
                 position: ScreenPosition::new(pos.x, pos.y),
             }),
@@ -281,7 +298,7 @@ unsafe fn on_window_pos_changed(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> L
 unsafe fn on_exit_size_move(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     let size = get_client_rect(hwnd);
     Context::send_event(
-        hwnd,
+        WindowHandle::new(hwnd),
         Event::Resized(event::Resized {
             size: Size::new(
                 (size.right - size.left) as u32,
@@ -294,10 +311,11 @@ unsafe fn on_exit_size_move(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> LRESU
 
 unsafe fn on_activate(hwnd: HWND, wparam: WPARAM, _lparam: LPARAM) -> LRESULT {
     let active = wparam.0 as u32 & (WA_ACTIVE | WA_CLICKACTIVE) != 0;
+    let handle = WindowHandle::new(hwnd);
     if active {
-        Context::send_event(hwnd, Event::Activated);
+        Context::send_event(handle, Event::Activated);
     } else {
-        Context::send_event(hwnd, Event::Inactivate);
+        Context::send_event(handle, Event::Inactivate);
     }
     LRESULT(0)
 }
@@ -306,7 +324,7 @@ unsafe fn on_dpi_changed(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> LRESULT 
     let rc = *(lparam.0 as *const RECT);
     SetWindowPos(
         hwnd,
-        HWND(0),
+        HWND::default(),
         rc.left,
         rc.top,
         rc.right - rc.left,
@@ -315,7 +333,10 @@ unsafe fn on_dpi_changed(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> LRESULT 
     )
     .ok();
     let new_dpi = hiword(wparam.0 as i32) as u32;
-    Context::send_event(hwnd, Event::DpiChanged(event::DpiChanged { new_dpi }));
+    Context::send_event(
+        WindowHandle::new(hwnd),
+        Event::DpiChanged(event::DpiChanged { new_dpi }),
+    );
     LRESULT(0)
 }
 
@@ -341,7 +362,7 @@ unsafe fn on_get_dpi_scaled_size(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> 
 }
 
 unsafe fn on_drop_files(hwnd: HWND, wparam: WPARAM, _lparam: LPARAM) -> LRESULT {
-    let hdrop = HDROP(wparam.0 as isize);
+    let hdrop = HDROP(wparam.0 as *mut _);
     let file_count = DragQueryFileW(hdrop, u32::MAX, None);
     let mut paths = Vec::with_capacity(file_count as usize);
     let mut buffer = Vec::new();
@@ -356,7 +377,7 @@ unsafe fn on_drop_files(hwnd: HWND, wparam: WPARAM, _lparam: LPARAM) -> LRESULT 
     let mut position = POINT::default();
     let _ = DragQueryPoint(hdrop, &mut position);
     Context::send_event(
-        hwnd,
+        WindowHandle::new(hwnd),
         Event::DropFiles(event::DropFiles {
             paths,
             position: position.into(),
@@ -372,12 +393,16 @@ unsafe fn on_nc_create(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
 }
 
 unsafe fn on_nc_hittest(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
-    let hook = Context::get_window_props(hwnd, |props| props.nc_hittest).unwrap();
+    let hook =
+        Context::get_window_props(WindowHandle::new(hwnd), |props| props.nc_hittest).unwrap();
     if !hook {
         return DefWindowProcW(hwnd, WM_NCHITTEST, wparam, lparam);
     }
     let (tx, rx) = oneshot::channel();
-    Context::send_event(hwnd, Event::NcHitTest(event::NcHitTest::new(lparam, tx)));
+    Context::send_event(
+        WindowHandle::new(hwnd),
+        Event::NcHitTest(event::NcHitTest::new(lparam, tx)),
+    );
     match rx.blocking_recv() {
         Ok(Some(value)) => LRESULT(value as isize),
         _ => DefWindowProcW(hwnd, WM_NCHITTEST, wparam, lparam),
@@ -385,17 +410,22 @@ unsafe fn on_nc_hittest(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
 }
 
 unsafe fn on_close(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
-    let auto_close = Context::get_window_props(hwnd, |props| props.auto_close).unwrap();
+    let handle = WindowHandle::new(hwnd);
+    let auto_close = Context::get_window_props(handle, |props| props.auto_close).unwrap();
     if auto_close {
         return DefWindowProcW(hwnd, WM_CLOSE, wparam, lparam);
     }
-    Context::send_event(hwnd, Event::CloseRequest(event::CloseRequest::new(hwnd)));
+    Context::send_event(
+        handle,
+        Event::CloseRequest(event::CloseRequest::new(handle)),
+    );
     LRESULT(0)
 }
 
 unsafe fn on_destroy(hwnd: HWND) -> LRESULT {
-    Context::send_event(hwnd, Event::Closed);
-    Context::remove_window(hwnd);
+    let handle = WindowHandle::new(hwnd);
+    Context::send_event(handle, Event::Closed);
+    Context::remove_window(handle);
     if Context::is_empty() {
         PostQuitMessage(0);
     }
@@ -501,7 +531,7 @@ pub(crate) extern "system" fn window_proc(
             WM_DESTROY => on_destroy(hwnd),
             _ => {
                 Context::send_event(
-                    hwnd,
+                    WindowHandle::new(hwnd),
                     Event::Other(event::Other {
                         msg,
                         wparam: wparam.0,

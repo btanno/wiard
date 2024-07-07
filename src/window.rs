@@ -33,6 +33,31 @@ pub(crate) fn register_class() {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub struct WindowHandle(isize);
+
+impl WindowHandle {
+    pub(crate) fn new(hwnd: HWND) -> Self {
+        Self(hwnd.0 as isize)
+    }
+
+    pub(crate) fn as_hwnd(&self) -> HWND {
+        HWND(self.0 as *mut std::ffi::c_void)
+    }
+}
+
+impl From<WindowHandle> for HWND {
+    fn from(value: WindowHandle) -> Self {
+        value.as_hwnd()
+    }
+}
+
+impl std::hash::Hash for WindowHandle {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        state.write_isize(self.0);
+    }
+}
+
 /// `EventReceive` and `AsyncEventReceiver` are implement this trait.
 pub trait IsReceiver {
     fn id(&self) -> u64;
@@ -40,7 +65,7 @@ pub trait IsReceiver {
 
 /// `Window` and `AsyncWindow` are implement this trait.
 pub trait IsWindow {
-    fn hwnd(&self) -> HWND;
+    fn window_handle(&self) -> WindowHandle;
 }
 
 /// Represents `Window` or `InnerWindow`
@@ -51,10 +76,10 @@ pub enum WindowKind {
 }
 
 impl WindowKind {
-    pub(crate) fn hwnd(&self) -> HWND {
+    pub(crate) fn window_handle(&self) -> WindowHandle {
         match self {
-            Self::Window(w) => w.hwnd,
-            Self::InnerWindow(w) => w.hwnd,
+            Self::Window(w) => w.handle,
+            Self::InnerWindow(w) => w.handle,
         }
     }
 }
@@ -67,10 +92,10 @@ pub enum AsyncWindowKind {
 }
 
 impl AsyncWindowKind {
-    pub(crate) fn hwnd(&self) -> HWND {
+    pub(crate) fn window_handle(&self) -> WindowHandle {
         match self {
-            Self::Window(w) => w.hwnd,
-            Self::InnerWindow(w) => w.hwnd,
+            Self::Window(w) => w.handle,
+            Self::InnerWindow(w) => w.handle,
         }
     }
 }
@@ -180,12 +205,13 @@ impl AsyncEventReceiver {
             }
         };
         match ret.1 {
-            WindowKind::Window(w) => {
-                Some((ret.0, AsyncWindowKind::Window(AsyncWindow { hwnd: w.hwnd })))
-            }
+            WindowKind::Window(w) => Some((
+                ret.0,
+                AsyncWindowKind::Window(AsyncWindow { handle: w.handle }),
+            )),
             WindowKind::InnerWindow(w) => Some((
                 ret.0,
-                AsyncWindowKind::InnerWindow(AsyncInnerWindow { hwnd: w.hwnd }),
+                AsyncWindowKind::InnerWindow(AsyncInnerWindow { handle: w.handle }),
             )),
         }
     }
@@ -206,12 +232,13 @@ impl AsyncEventReceiver {
                     RecvEventOrPanic::Panic(e) => std::panic::resume_unwind(e),
                 };
                 match ret.1 {
-                    WindowKind::Window(w) => {
-                        Ok((ret.0, AsyncWindowKind::Window(AsyncWindow { hwnd: w.hwnd })))
-                    }
+                    WindowKind::Window(w) => Ok((
+                        ret.0,
+                        AsyncWindowKind::Window(AsyncWindow { handle: w.handle }),
+                    )),
                     WindowKind::InnerWindow(w) => Ok((
                         ret.0,
-                        AsyncWindowKind::InnerWindow(AsyncInnerWindow { hwnd: w.hwnd }),
+                        AsyncWindowKind::InnerWindow(AsyncInnerWindow { handle: w.handle }),
                     )),
                 }
             }
@@ -243,7 +270,7 @@ pub struct WindowBuilder<'a, Rx, Title = &'static str, Sz = LogicalSize<u32>, St
     nc_hittest: bool,
     icon: Option<Icon>,
     cursor: Cursor,
-    parent: Option<HWND>,
+    parent: Option<WindowHandle>,
 }
 
 impl<'a, Rx> WindowBuilder<'a, Rx> {
@@ -390,7 +417,7 @@ impl<'a, Rx, Title, Sz, Sty> WindowBuilder<'a, Rx, Title, Sz, Sty> {
 
     #[inline]
     pub fn parent(mut self, parent: &impl IsWindow) -> Self {
-        self.parent = Some(parent.hwnd());
+        self.parent = Some(parent.window_handle());
         self
     }
 
@@ -416,8 +443,8 @@ struct BuilderProps<Pos, Sz> {
     cursor: Cursor,
     nc_hittest: bool,
     event_rx_id: u64,
-    parent: Option<HWND>,
-    parent_inner: Option<HWND>,
+    parent: Option<WindowHandle>,
+    parent_inner: Option<WindowHandle>,
 }
 
 impl<Sz> BuilderProps<PhysicalPosition<i32>, Sz> {
@@ -481,14 +508,14 @@ pub(crate) struct WindowProps {
     pub visible_ime_candidate_window: bool,
     pub auto_close: bool,
     pub cursor: Cursor,
-    pub parent: Option<HWND>,
+    pub parent: Option<WindowHandle>,
     pub nc_hittest: bool,
 }
 
 fn create_window<Pos, Sz>(
     props: BuilderProps<Pos, Sz>,
-    f: impl FnOnce(HWND) -> WindowKind,
-) -> Result<HWND>
+    f: impl FnOnce(WindowHandle) -> WindowKind,
+) -> Result<WindowHandle>
 where
     Pos: ToPhysical<i32, Output<i32> = PhysicalPosition<i32>> + Send + 'static,
     Sz: ToPhysical<u32, Output<u32> = PhysicalSize<u32>> + Send + 'static,
@@ -499,6 +526,7 @@ where
         let size = props.inner_size.to_physical(dpi);
         let rc = adjust_window_rect_ex_for_dpi(size, props.style, false, props.ex_style, dpi);
         let hinstance: HINSTANCE = GetModuleHandleW(None).unwrap().into();
+        let parent = props.parent_inner.as_ref().map(|p| p.as_hwnd());
         let hwnd = CreateWindowExW(
             props.ex_style,
             WINDOW_CLASS_NAME,
@@ -508,14 +536,12 @@ where
             position.y,
             rc.right - rc.left,
             rc.bottom - rc.top,
-            props.parent_inner.as_ref(),
+            parent.as_ref(),
             None,
             hinstance,
             None,
-        );
-        if hwnd == HWND(0) {
-            return Err(Error::from_win32());
-        }
+        )?;
+        let handle = WindowHandle::new(hwnd);
         let dark_mode = BOOL::from(is_dark_mode());
         if dark_mode.as_bool() {
             log::info!("Dark mode");
@@ -531,7 +557,7 @@ where
         if let Err(e) = ret {
             log::error!("DwmSetWindowAttribute: {e}");
         }
-        let imm_context = ime::ImmContext::new(hwnd);
+        let imm_context = ime::ImmContext::new(handle);
         if props.enable_ime {
             imm_context.enable();
         } else {
@@ -539,14 +565,20 @@ where
         }
         if let Some(icon) = props.icon {
             if let Ok(big) = icon.load(hinstance) {
-                PostMessageW(hwnd, WM_SETICON, WPARAM(ICON_BIG as usize), LPARAM(big.0)).ok();
+                PostMessageW(
+                    hwnd,
+                    WM_SETICON,
+                    WPARAM(ICON_BIG as usize),
+                    LPARAM(big.0 as isize),
+                )
+                .ok();
             }
             if let Ok(small) = icon.load_small(hinstance) {
                 PostMessageW(
                     hwnd,
                     WM_SETICON,
                     WPARAM(ICON_SMALL as usize),
-                    LPARAM(small.0),
+                    LPARAM(small.0 as isize),
                 )
                 .ok();
             }
@@ -560,11 +592,11 @@ where
             parent: props.parent,
             nc_hittest: props.nc_hittest,
         };
-        Context::register_window(f(hwnd), window_props, props.event_rx_id);
+        Context::register_window(f(handle), window_props, props.event_rx_id);
         if props.visiblity {
             let _ = ShowWindow(hwnd, SW_SHOW);
         }
-        Ok(hwnd)
+        Ok(handle)
     }
 }
 
@@ -576,19 +608,18 @@ where
 {
     /// Builds a window.
     pub fn build(self) -> Result<Window> {
-        let (tx, rx) = tokio::sync::oneshot::channel::<Result<HWND>>();
+        let (tx, rx) = tokio::sync::oneshot::channel::<Result<WindowHandle>>();
         let props = BuilderProps::new(self);
         UiThread::send_task(move || {
-            tx.send(create_window(props, |hwnd| {
-                WindowKind::Window(Window { hwnd })
+            tx.send(create_window(props, |handle| {
+                WindowKind::Window(Window { handle })
             }))
             .ok();
         });
         let Ok(ret) = rx.blocking_recv() else {
             return Err(Error::UiThreadClosed);
         };
-        let hwnd = ret?;
-        Ok(Window { hwnd })
+        Ok(Window { handle: ret? })
     }
 }
 
@@ -600,19 +631,18 @@ where
 {
     /// Builds a window.
     pub async fn build(self) -> Result<AsyncWindow> {
-        let (tx, rx) = tokio::sync::oneshot::channel::<Result<HWND>>();
+        let (tx, rx) = tokio::sync::oneshot::channel::<Result<WindowHandle>>();
         let props = BuilderProps::new(self);
         UiThread::send_task(move || {
-            tx.send(create_window(props, |hwnd| {
-                WindowKind::Window(Window { hwnd })
+            tx.send(create_window(props, |handle| {
+                WindowKind::Window(Window { handle })
             }))
             .ok();
         });
         let Ok(ret) = rx.await else {
             return Err(Error::UiThreadClosed);
         };
-        let hwnd = ret?;
-        Ok(AsyncWindow { hwnd })
+        Ok(AsyncWindow { handle: ret? })
     }
 }
 
@@ -625,11 +655,11 @@ where
     type IntoFuture = std::pin::Pin<Box<dyn std::future::Future<Output = Self::Output>>>;
 
     fn into_future(self) -> Self::IntoFuture {
-        let (tx, rx) = tokio::sync::oneshot::channel::<Result<HWND>>();
+        let (tx, rx) = tokio::sync::oneshot::channel::<Result<WindowHandle>>();
         let props = BuilderProps::new(self);
         UiThread::send_task(move || {
-            tx.send(create_window(props, |hwnd| {
-                WindowKind::InnerWindow(InnerWindow { hwnd })
+            tx.send(create_window(props, |handle| {
+                WindowKind::InnerWindow(InnerWindow { handle })
             }))
             .ok();
         });
@@ -637,8 +667,7 @@ where
             let Ok(ret) = rx.await else {
                 return Err(Error::UiThreadClosed);
             };
-            let hwnd = ret?;
-            Ok(AsyncWindow { hwnd })
+            Ok(AsyncWindow { handle: ret? })
         })
     }
 }
@@ -649,20 +678,20 @@ mod methods {
     use super::*;
 
     #[inline]
-    pub fn position(hwnd: HWND) -> oneshot::Receiver<PhysicalPosition<i32>> {
+    pub fn position(handle: WindowHandle) -> oneshot::Receiver<PhysicalPosition<i32>> {
         let (tx, rx) = oneshot::channel::<PhysicalPosition<i32>>();
         UiThread::send_task(move || {
-            let rc = get_window_rect(hwnd);
+            let rc = get_window_rect(handle.into());
             tx.send(PhysicalPosition::new(rc.left, rc.top)).ok();
         });
         rx
     }
 
     #[inline]
-    pub fn inner_size(hwnd: HWND) -> oneshot::Receiver<PhysicalSize<u32>> {
+    pub fn inner_size(handle: WindowHandle) -> oneshot::Receiver<PhysicalSize<u32>> {
         let (tx, rx) = oneshot::channel::<PhysicalSize<u32>>();
         UiThread::send_task(move || {
-            let rc = get_client_rect(hwnd);
+            let rc = get_client_rect(handle.into());
             tx.send(PhysicalSize::new(
                 (rc.right - rc.left) as u32,
                 (rc.bottom - rc.top) as u32,
@@ -673,20 +702,20 @@ mod methods {
     }
 
     #[inline]
-    pub fn dpi(hwnd: HWND) -> oneshot::Receiver<u32> {
+    pub fn dpi(handle: WindowHandle) -> oneshot::Receiver<u32> {
         let (tx, rx) = oneshot::channel::<u32>();
         UiThread::send_task(move || unsafe {
-            let dpi = GetDpiForWindow(hwnd);
+            let dpi = GetDpiForWindow(handle.as_hwnd());
             tx.send(dpi).ok();
         });
         rx
     }
 
     #[inline]
-    pub fn enable_ime(hwnd: HWND, enabled: bool) -> oneshot::Receiver<()> {
+    pub fn enable_ime(handle: WindowHandle, enabled: bool) -> oneshot::Receiver<()> {
         let (tx, rx) = oneshot::channel::<()>();
         UiThread::send_task(move || {
-            Context::set_window_props(hwnd, |props| {
+            Context::set_window_props(handle, |props| {
                 if enabled {
                     props.imm_context.enable();
                 } else {
@@ -699,15 +728,15 @@ mod methods {
     }
 
     #[inline]
-    pub fn set_position<T>(hwnd: HWND, position: T)
+    pub fn set_position<T>(handle: WindowHandle, position: T)
     where
         T: ToPhysical<i32, Output<i32> = PhysicalPosition<i32>> + Send + 'static,
     {
         UiThread::send_task(move || unsafe {
-            let dpi = GetDpiForWindow(hwnd) as i32;
+            let dpi = GetDpiForWindow(handle.as_hwnd()) as i32;
             let position = position.to_physical(dpi);
             SetWindowPos(
-                hwnd,
+                handle.as_hwnd(),
                 None,
                 position.x,
                 position.y,
@@ -720,15 +749,15 @@ mod methods {
     }
 
     #[inline]
-    pub fn set_size<T>(hwnd: HWND, size: T)
+    pub fn set_size<T>(handle: WindowHandle, size: T)
     where
         T: ToPhysical<u32, Output<u32> = PhysicalSize<u32>> + Send + 'static,
     {
         UiThread::send_task(move || unsafe {
-            let dpi = GetDpiForWindow(hwnd);
+            let dpi = GetDpiForWindow(handle.as_hwnd());
             let size = size.to_physical(dpi);
             SetWindowPos(
-                hwnd,
+                handle.as_hwnd(),
                 None,
                 0,
                 0,
@@ -741,63 +770,63 @@ mod methods {
     }
 
     #[inline]
-    pub fn close(hwnd: HWND) {
+    pub fn close(handle: WindowHandle) {
         UiThread::send_task(move || unsafe {
-            PostMessageW(hwnd, WM_CLOSE, WPARAM(0), LPARAM(0)).ok();
+            PostMessageW(handle.as_hwnd(), WM_CLOSE, WPARAM(0), LPARAM(0)).ok();
         });
     }
 
     #[inline]
-    pub fn show(hwnd: HWND) {
+    pub fn show(handle: WindowHandle) {
         unsafe {
-            let _ = ShowWindowAsync(hwnd, SW_SHOW);
+            let _ = ShowWindowAsync(handle.as_hwnd(), SW_SHOW);
         }
     }
 
     #[inline]
-    pub fn hide(hwnd: HWND) {
+    pub fn hide(handle: WindowHandle) {
         unsafe {
-            let _ = ShowWindowAsync(hwnd, SW_HIDE);
+            let _ = ShowWindowAsync(handle.as_hwnd(), SW_HIDE);
         }
     }
 
     #[inline]
-    pub fn minimize(hwnd: HWND) {
+    pub fn minimize(handle: WindowHandle) {
         unsafe {
-            let _ = ShowWindowAsync(hwnd, SW_MINIMIZE);
+            let _ = ShowWindowAsync(handle.as_hwnd(), SW_MINIMIZE);
         }
     }
 
     #[inline]
-    pub fn maximize(hwnd: HWND) {
+    pub fn maximize(handle: WindowHandle) {
         unsafe {
-            let _ = ShowWindowAsync(hwnd, SW_SHOWMAXIMIZED);
+            let _ = ShowWindowAsync(handle.as_hwnd(), SW_SHOWMAXIMIZED);
         }
     }
 
     #[inline]
-    pub fn restore(hwnd: HWND) {
+    pub fn restore(handle: WindowHandle) {
         unsafe {
-            let _ = ShowWindowAsync(hwnd, SW_RESTORE);
+            let _ = ShowWindowAsync(handle.as_hwnd(), SW_RESTORE);
         }
     }
 
     #[inline]
-    pub fn set_cursor(hwnd: HWND, cursor: Cursor) {
+    pub fn set_cursor(handle: WindowHandle, cursor: Cursor) {
         UiThread::send_task(move || {
             cursor.set();
-            Context::set_window_props(hwnd, |props| {
+            Context::set_window_props(handle, |props| {
                 props.cursor = cursor;
             });
         });
     }
 
     #[inline]
-    pub fn redraw(hwnd: HWND, invalidate_rect: Option<PhysicalRect<i32>>) {
+    pub fn redraw(handle: WindowHandle, invalidate_rect: Option<PhysicalRect<i32>>) {
         UiThread::send_task(move || unsafe {
             let rc: Option<RECT> = invalidate_rect.map(|rc| rc.into());
             let p = rc.as_ref().map(|p| p as *const RECT);
-            let _ = RedrawWindow(hwnd, p, None, RDW_INVALIDATE);
+            let _ = RedrawWindow(handle.as_hwnd(), p, None, RDW_INVALIDATE);
         });
     }
 }
@@ -805,7 +834,7 @@ mod methods {
 /// Represents a window.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Window {
-    hwnd: HWND,
+    handle: WindowHandle,
 }
 
 impl Window {
@@ -816,19 +845,19 @@ impl Window {
 
     #[inline]
     pub fn position(&self) -> Option<PhysicalPosition<i32>> {
-        let rx = methods::position(self.hwnd);
+        let rx = methods::position(self.window_handle());
         rx.blocking_recv().ok()
     }
 
     #[inline]
     pub fn inner_size(&self) -> Option<PhysicalSize<u32>> {
-        let rx = methods::inner_size(self.hwnd);
+        let rx = methods::inner_size(self.window_handle());
         rx.blocking_recv().ok()
     }
 
     #[inline]
     pub fn dpi(&self) -> Option<u32> {
-        let rx = methods::dpi(self.hwnd);
+        let rx = methods::dpi(self.window_handle());
         rx.blocking_recv().ok()
     }
 
@@ -837,7 +866,7 @@ impl Window {
     where
         T: ToPhysical<i32, Output<i32> = PhysicalPosition<i32>> + Send + 'static,
     {
-        methods::set_position(self.hwnd, position);
+        methods::set_position(self.window_handle(), position);
     }
 
     #[inline]
@@ -845,82 +874,84 @@ impl Window {
     where
         T: ToPhysical<u32, Output<u32> = PhysicalSize<u32>> + Send + 'static,
     {
-        methods::set_size(self.hwnd, size);
+        methods::set_size(self.window_handle(), size);
     }
 
     #[inline]
     pub fn enable_ime(&self, enabled: bool) {
-        methods::enable_ime(self.hwnd, enabled).blocking_recv().ok();
+        methods::enable_ime(self.window_handle(), enabled)
+            .blocking_recv()
+            .ok();
     }
 
     #[inline]
     pub fn show(&self) {
-        methods::show(self.hwnd);
+        methods::show(self.window_handle());
     }
 
     #[inline]
     pub fn hide(&self) {
-        methods::hide(self.hwnd);
+        methods::hide(self.window_handle());
     }
 
     #[inline]
     pub fn minimize(&self) {
-        methods::minimize(self.hwnd);
+        methods::minimize(self.window_handle());
     }
 
     #[inline]
     pub fn maximize(&self) {
-        methods::maximize(self.hwnd);
+        methods::maximize(self.window_handle());
     }
 
     #[inline]
     pub fn restore(&self) {
-        methods::restore(self.hwnd);
+        methods::restore(self.window_handle());
     }
 
     #[inline]
     pub fn cursor(&self) -> Option<Cursor> {
-        Context::get_window_props(self.hwnd, |props| props.cursor.clone())
+        Context::get_window_props(self.window_handle(), |props| props.cursor.clone())
     }
 
     #[inline]
     pub fn set_cursor(&self, cursor: Cursor) {
-        let hwnd = self.hwnd;
+        let hwnd = self.window_handle();
         methods::set_cursor(hwnd, cursor);
     }
 
     #[inline]
     pub fn redraw(&self, invalidate_rect: Option<PhysicalRect<i32>>) {
-        methods::redraw(self.hwnd, invalidate_rect);
+        methods::redraw(self.window_handle(), invalidate_rect);
     }
 
     #[inline]
     pub fn is_closed(&self) -> bool {
-        Context::window_is_none(self.hwnd)
+        Context::window_is_none(self.window_handle())
     }
 
     #[inline]
     pub fn close(&self) {
-        methods::close(self.hwnd);
+        methods::close(self.window_handle());
     }
 
     #[inline]
-    pub fn raw_handle(&self) -> isize {
-        self.hwnd.0
+    pub fn raw_handle(&self) -> *mut std::ffi::c_void {
+        self.window_handle().as_hwnd().0
     }
 }
 
 impl IsWindow for Window {
     #[inline]
-    fn hwnd(&self) -> HWND {
-        self.hwnd
+    fn window_handle(&self) -> WindowHandle {
+        self.handle
     }
 }
 
 /// Represents a window of async version.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct AsyncWindow {
-    hwnd: HWND,
+    handle: WindowHandle,
 }
 
 impl AsyncWindow {
@@ -931,19 +962,19 @@ impl AsyncWindow {
 
     #[inline]
     pub async fn position(&self) -> Option<PhysicalPosition<i32>> {
-        let rx = methods::position(self.hwnd);
+        let rx = methods::position(self.window_handle());
         rx.await.ok()
     }
 
     #[inline]
     pub async fn inner_size(&self) -> Option<PhysicalSize<u32>> {
-        let rx = methods::inner_size(self.hwnd);
+        let rx = methods::inner_size(self.window_handle());
         rx.await.ok()
     }
 
     #[inline]
     pub async fn dpi(&self) -> Option<u32> {
-        let rx = methods::dpi(self.hwnd);
+        let rx = methods::dpi(self.window_handle());
         rx.await.ok()
     }
 
@@ -952,7 +983,7 @@ impl AsyncWindow {
     where
         T: ToPhysical<i32, Output<i32> = PhysicalPosition<i32>> + Send + 'static,
     {
-        methods::set_position(self.hwnd, position);
+        methods::set_position(self.window_handle(), position);
     }
 
     #[inline]
@@ -960,75 +991,77 @@ impl AsyncWindow {
     where
         T: ToPhysical<u32, Output<u32> = PhysicalSize<u32>> + Send + 'static,
     {
-        methods::set_size(self.hwnd, size);
+        methods::set_size(self.window_handle(), size);
     }
 
     #[inline]
     pub async fn enable_ime(&self, enabled: bool) {
-        methods::enable_ime(self.hwnd, enabled).await.ok();
+        methods::enable_ime(self.window_handle(), enabled)
+            .await
+            .ok();
     }
 
     #[inline]
     pub fn show(&self) {
-        methods::show(self.hwnd);
+        methods::show(self.window_handle());
     }
 
     #[inline]
     pub fn hide(&self) {
-        methods::hide(self.hwnd);
+        methods::hide(self.window_handle());
     }
 
     #[inline]
     pub fn minimize(&self) {
-        methods::minimize(self.hwnd);
+        methods::minimize(self.window_handle());
     }
 
     #[inline]
     pub fn maximize(&self) {
-        methods::maximize(self.hwnd);
+        methods::maximize(self.window_handle());
     }
 
     #[inline]
     pub fn restore(&self) {
-        methods::restore(self.hwnd);
+        methods::restore(self.window_handle());
     }
 
     #[inline]
     pub fn cursor(&self) -> Option<Cursor> {
-        Context::get_window_props(self.hwnd, |props| props.cursor.clone())
+        Context::get_window_props(self.window_handle(), |props| props.cursor.clone())
     }
 
     #[inline]
     pub fn set_cursor(&self, cursor: Cursor) {
-        let hwnd = self.hwnd;
+        let hwnd = self.window_handle();
         methods::set_cursor(hwnd, cursor);
     }
 
     #[inline]
     pub fn redraw(&self, invalidate_rect: Option<PhysicalRect<i32>>) {
-        methods::redraw(self.hwnd, invalidate_rect);
+        methods::redraw(self.window_handle(), invalidate_rect);
     }
 
     #[inline]
     pub fn is_closed(&self) -> bool {
-        Context::window_is_none(self.hwnd)
+        Context::window_is_none(self.window_handle())
     }
 
     #[inline]
     pub fn close(&self) {
-        methods::close(self.hwnd);
+        methods::close(self.window_handle());
     }
 
     #[inline]
-    pub fn raw_handle(&self) -> isize {
-        self.hwnd.0
+    pub fn raw_handle(&self) -> *mut std::ffi::c_void {
+        self.window_handle().as_hwnd().0
     }
 }
 
 impl IsWindow for AsyncWindow {
     #[inline]
-    fn hwnd(&self) -> HWND {
-        self.hwnd
+    fn window_handle(&self) -> WindowHandle {
+        self.handle
     }
 }
 
@@ -1040,7 +1073,12 @@ impl raw_window_handle::HasWindowHandle for Window {
     {
         Ok(unsafe {
             raw_window_handle::WindowHandle::borrow_raw(raw_window_handle::RawWindowHandle::Win32(
-                raw_window_handle::Win32WindowHandle::new(self.hwnd.0.try_into().unwrap()),
+                raw_window_handle::Win32WindowHandle::new(
+                    IsWindow::window_handle(self)
+                        .0
+                        .try_into()
+                        .map_err(|_| raw_window_handle::HandleError::Unavailable)?,
+                ),
             ))
         })
     }
@@ -1054,7 +1092,12 @@ impl raw_window_handle::HasWindowHandle for AsyncWindow {
     {
         Ok(unsafe {
             raw_window_handle::WindowHandle::borrow_raw(raw_window_handle::RawWindowHandle::Win32(
-                raw_window_handle::Win32WindowHandle::new(self.hwnd.0.try_into().unwrap()),
+                raw_window_handle::Win32WindowHandle::new(
+                    IsWindow::window_handle(self)
+                        .0
+                        .try_into()
+                        .map_err(|_| raw_window_handle::HandleError::Unavailable)?,
+                ),
             ))
         })
     }
@@ -1098,7 +1141,7 @@ impl raw_window_handle::HasDisplayHandle for AsyncWindow {
 ///
 pub struct InnerWindowBuilder<'a, Rx, Pos = (), Sz = ()> {
     event_rx: &'a Rx,
-    parent_inner: HWND,
+    parent_inner: WindowHandle,
     position: Pos,
     size: Sz,
     visibility: bool,
@@ -1118,14 +1161,14 @@ impl<'a, Rx> InnerWindowBuilder<'a, Rx> {
     {
         Self {
             event_rx,
-            parent_inner: parent.hwnd(),
+            parent_inner: parent.window_handle(),
             position: (),
             size: (),
             visibility: true,
             enable_ime: true,
             visible_ime_candidate_window: true,
             accept_drop_files: false,
-            cursor: Context::get_window_props(parent.hwnd(), |props| props.cursor.clone())
+            cursor: Context::get_window_props(parent.window_handle(), |props| props.cursor.clone())
                 .unwrap_or_default(),
             nc_hittest: false,
         }
@@ -1210,19 +1253,18 @@ where
     /// Builds an inner window.
     #[inline]
     pub fn build(self) -> Result<InnerWindow> {
-        let (tx, rx) = tokio::sync::oneshot::channel::<Result<HWND>>();
+        let (tx, rx) = tokio::sync::oneshot::channel::<Result<WindowHandle>>();
         let props = BuilderProps::new_inner(self);
         UiThread::send_task(move || {
-            tx.send(create_window(props, |hwnd| {
-                WindowKind::Window(Window { hwnd })
+            tx.send(create_window(props, |handle| {
+                WindowKind::Window(Window { handle })
             }))
             .ok();
         });
         let Ok(ret) = rx.blocking_recv() else {
             return Err(Error::UiThreadClosed);
         };
-        let hwnd = ret?;
-        Ok(InnerWindow { hwnd })
+        Ok(InnerWindow { handle: ret? })
     }
 }
 
@@ -1234,26 +1276,25 @@ where
     /// Builds an inner window of async version.
     #[inline]
     pub async fn build(self) -> Result<AsyncInnerWindow> {
-        let (tx, rx) = tokio::sync::oneshot::channel::<Result<HWND>>();
+        let (tx, rx) = tokio::sync::oneshot::channel::<Result<WindowHandle>>();
         let props = BuilderProps::new_inner(self);
         UiThread::send_task(move || {
-            tx.send(create_window(props, |hwnd| {
-                WindowKind::InnerWindow(InnerWindow { hwnd })
+            tx.send(create_window(props, |handle| {
+                WindowKind::InnerWindow(InnerWindow { handle })
             }))
             .ok();
         });
         let Ok(ret) = rx.await else {
             return Err(Error::UiThreadClosed);
         };
-        let hwnd = ret?;
-        Ok(AsyncInnerWindow { hwnd })
+        Ok(AsyncInnerWindow { handle: ret? })
     }
 }
 
 /// Represents an inner window.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct InnerWindow {
-    hwnd: HWND,
+    handle: WindowHandle,
 }
 
 impl InnerWindow {
@@ -1268,19 +1309,19 @@ impl InnerWindow {
 
     #[inline]
     pub fn position(&self) -> Option<PhysicalPosition<i32>> {
-        let rx = methods::position(self.hwnd);
+        let rx = methods::position(self.handle);
         rx.blocking_recv().ok()
     }
 
     #[inline]
     pub fn size(&self) -> Option<PhysicalSize<u32>> {
-        let rx = methods::inner_size(self.hwnd);
+        let rx = methods::inner_size(self.handle);
         rx.blocking_recv().ok()
     }
 
     #[inline]
     pub fn dpi(&self) -> Option<u32> {
-        let rx = methods::dpi(self.hwnd);
+        let rx = methods::dpi(self.handle);
         rx.blocking_recv().ok()
     }
 
@@ -1289,7 +1330,7 @@ impl InnerWindow {
     where
         T: ToPhysical<i32, Output<i32> = PhysicalPosition<i32>> + Send + 'static,
     {
-        methods::set_position(self.hwnd, position);
+        methods::set_position(self.handle, position);
     }
 
     #[inline]
@@ -1297,35 +1338,36 @@ impl InnerWindow {
     where
         T: ToPhysical<u32, Output<u32> = PhysicalSize<u32>> + Send + 'static,
     {
-        methods::set_size(self.hwnd, size);
+        methods::set_size(self.handle, size);
     }
 
     #[inline]
     pub fn enable_ime(&self, enabled: bool) {
-        methods::enable_ime(self.hwnd, enabled).blocking_recv().ok();
+        methods::enable_ime(self.handle, enabled)
+            .blocking_recv()
+            .ok();
     }
 
     #[inline]
     pub fn cursor(&self) -> Option<Cursor> {
-        Context::get_window_props(self.hwnd, |props| props.cursor.clone())
+        Context::get_window_props(self.handle, |props| props.cursor.clone())
     }
 
     #[inline]
     pub fn set_cursor(&self, cursor: Cursor) {
-        let hwnd = self.hwnd;
-        methods::set_cursor(hwnd, cursor);
+        methods::set_cursor(self.handle, cursor);
     }
 
     #[inline]
-    pub fn raw_handle(&self) -> isize {
-        self.hwnd.0
+    pub fn raw_handle(&self) -> *mut std::ffi::c_void {
+        self.handle.as_hwnd().0
     }
 }
 
 /// Represents an inner window of async version.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct AsyncInnerWindow {
-    hwnd: HWND,
+    handle: WindowHandle,
 }
 
 impl AsyncInnerWindow {
@@ -1342,19 +1384,19 @@ impl AsyncInnerWindow {
 
     #[inline]
     pub async fn position(&self) -> Option<PhysicalPosition<i32>> {
-        let rx = methods::position(self.hwnd);
+        let rx = methods::position(self.handle);
         rx.await.ok()
     }
 
     #[inline]
     pub async fn size(&self) -> Option<PhysicalSize<u32>> {
-        let rx = methods::inner_size(self.hwnd);
+        let rx = methods::inner_size(self.handle);
         rx.await.ok()
     }
 
     #[inline]
     pub async fn dpi(&self) -> Option<u32> {
-        let rx = methods::dpi(self.hwnd);
+        let rx = methods::dpi(self.handle);
         rx.await.ok()
     }
 
@@ -1363,7 +1405,7 @@ impl AsyncInnerWindow {
     where
         T: ToPhysical<i32, Output<i32> = PhysicalPosition<i32>> + Send + 'static,
     {
-        methods::set_position(self.hwnd, position);
+        methods::set_position(self.handle, position);
     }
 
     #[inline]
@@ -1371,28 +1413,29 @@ impl AsyncInnerWindow {
     where
         T: ToPhysical<u32, Output<u32> = PhysicalSize<u32>> + Send + 'static,
     {
-        methods::set_size(self.hwnd, size);
+        methods::set_size(self.handle, size);
     }
 
     #[inline]
     pub fn enable_ime(&self, enabled: bool) {
-        methods::enable_ime(self.hwnd, enabled).blocking_recv().ok();
+        methods::enable_ime(self.handle, enabled)
+            .blocking_recv()
+            .ok();
     }
 
     #[inline]
     pub fn cursor(&self) -> Option<Cursor> {
-        Context::get_window_props(self.hwnd, |props| props.cursor.clone())
+        Context::get_window_props(self.handle, |props| props.cursor.clone())
     }
 
     #[inline]
     pub fn set_cursor(&self, cursor: Cursor) {
-        let hwnd = self.hwnd;
-        methods::set_cursor(hwnd, cursor);
+        methods::set_cursor(self.handle, cursor);
     }
 
     #[inline]
-    pub fn raw_handle(&self) -> isize {
-        self.hwnd.0
+    pub fn raw_handle(&self) -> *mut std::ffi::c_void {
+        self.handle.as_hwnd().0
     }
 }
 
@@ -1404,7 +1447,12 @@ impl raw_window_handle::HasWindowHandle for InnerWindow {
     {
         Ok(unsafe {
             raw_window_handle::WindowHandle::borrow_raw(raw_window_handle::RawWindowHandle::Win32(
-                raw_window_handle::Win32WindowHandle::new(self.hwnd.0.try_into().unwrap()),
+                raw_window_handle::Win32WindowHandle::new(
+                    self.handle
+                        .0
+                        .try_into()
+                        .map_err(|_| raw_window_handle::HandleError::Unavailable)?,
+                ),
             ))
         })
     }
@@ -1418,7 +1466,12 @@ impl raw_window_handle::HasWindowHandle for AsyncInnerWindow {
     {
         Ok(unsafe {
             raw_window_handle::WindowHandle::borrow_raw(raw_window_handle::RawWindowHandle::Win32(
-                raw_window_handle::Win32WindowHandle::new(self.hwnd.0.try_into().unwrap()),
+                raw_window_handle::Win32WindowHandle::new(
+                    self.handle
+                        .0
+                        .try_into()
+                        .map_err(|_| raw_window_handle::HandleError::Unavailable)?,
+                ),
             ))
         })
     }
@@ -1459,55 +1512,55 @@ impl raw_window_handle::HasDisplayHandle for AsyncInnerWindow {
 impl PartialEq<Window> for WindowKind {
     #[inline]
     fn eq(&self, other: &Window) -> bool {
-        self.hwnd() == other.hwnd
+        self.window_handle() == other.window_handle()
     }
 }
 
 impl PartialEq<InnerWindow> for WindowKind {
     #[inline]
     fn eq(&self, other: &InnerWindow) -> bool {
-        self.hwnd() == other.hwnd
+        self.window_handle() == other.handle
     }
 }
 
 impl PartialEq<WindowKind> for Window {
     #[inline]
     fn eq(&self, other: &WindowKind) -> bool {
-        self.hwnd == other.hwnd()
+        self.window_handle() == other.window_handle()
     }
 }
 
 impl PartialEq<WindowKind> for InnerWindow {
     #[inline]
     fn eq(&self, other: &WindowKind) -> bool {
-        self.hwnd == other.hwnd()
+        self.handle == other.window_handle()
     }
 }
 
 impl PartialEq<AsyncWindowKind> for AsyncWindow {
     #[inline]
     fn eq(&self, other: &AsyncWindowKind) -> bool {
-        self.hwnd == other.hwnd()
+        self.window_handle() == other.window_handle()
     }
 }
 
 impl PartialEq<AsyncWindowKind> for AsyncInnerWindow {
     #[inline]
     fn eq(&self, other: &AsyncWindowKind) -> bool {
-        self.hwnd == other.hwnd()
+        self.handle == other.window_handle()
     }
 }
 
 impl PartialEq<AsyncWindow> for AsyncWindowKind {
     #[inline]
     fn eq(&self, other: &AsyncWindow) -> bool {
-        self.hwnd() == other.hwnd
+        self.window_handle() == other.window_handle()
     }
 }
 
 impl PartialEq<AsyncInnerWindow> for AsyncWindowKind {
     #[inline]
     fn eq(&self, other: &AsyncInnerWindow) -> bool {
-        self.hwnd() == other.hwnd
+        self.window_handle() == other.handle
     }
 }

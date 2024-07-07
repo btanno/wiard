@@ -2,10 +2,7 @@ use crate::*;
 use std::cell::Cell;
 use std::path::PathBuf;
 use tokio::sync::oneshot;
-use windows::Win32::{
-    Foundation::{HWND, LPARAM},
-    UI::WindowsAndMessaging::*,
-};
+use windows::Win32::{Foundation::LPARAM, UI::WindowsAndMessaging::*};
 
 #[derive(Debug)]
 pub struct Draw {
@@ -219,19 +216,19 @@ impl Drop for NcHitTest {
 
 #[derive(Clone, Debug)]
 pub struct CloseRequest {
-    hwnd: HWND,
+    handle: WindowHandle,
 }
 
 impl CloseRequest {
-    pub(crate) fn new(hwnd: HWND) -> Self {
-        Self { hwnd }
+    pub(crate) fn new(handle: WindowHandle) -> Self {
+        Self { handle }
     }
 
     #[inline]
     pub fn destroy(&self) {
-        let hwnd = self.hwnd;
+        let handle = self.handle;
         UiThread::send_task(move || unsafe {
-            DestroyWindow(hwnd).ok();
+            DestroyWindow(handle.as_hwnd()).ok();
         });
     }
 }
