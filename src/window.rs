@@ -510,6 +510,7 @@ pub(crate) struct WindowProps {
     pub cursor: Cursor,
     pub parent: Option<WindowHandle>,
     pub nc_hittest: bool,
+    pub redrawing: bool,
 }
 
 fn create_window<Pos, Sz>(
@@ -591,6 +592,7 @@ where
             cursor: props.cursor,
             parent: props.parent,
             nc_hittest: props.nc_hittest,
+            redrawing: false,
         };
         Context::register_window(f(handle), window_props, props.event_rx_id);
         if props.visiblity {
@@ -826,7 +828,13 @@ mod methods {
         UiThread::send_task(move || unsafe {
             let rc: Option<RECT> = invalidate_rect.map(|rc| rc.into());
             let p = rc.as_ref().map(|p| p as *const RECT);
-            let _ = RedrawWindow(handle.as_hwnd(), p, None, RDW_INVALIDATE);
+            let redrawing = Context::get_window_props(handle, |props| props.redrawing);
+            if !redrawing.unwrap_or(true) {
+                let _ = RedrawWindow(handle.as_hwnd(), p, None, RDW_INVALIDATE);
+                Context::set_window_props(handle, |props| {
+                    props.redrawing = true;
+                });
+            }
         });
     }
 }
