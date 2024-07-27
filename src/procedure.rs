@@ -38,10 +38,9 @@ unsafe fn on_paint(hwnd: HWND) -> LRESULT {
     let _hdc = BeginPaint(hwnd, &mut ps);
     let _ = EndPaint(hwnd, &ps);
     let invalidate_rect = PhysicalRect::new(rc.left, rc.top, rc.right, rc.bottom);
-    Context::send_event(
-        WindowHandle::new(hwnd),
-        Event::Draw(event::Draw { invalidate_rect }),
-    );
+    let handle = WindowHandle::new(hwnd);
+    Context::set_window_props(handle, |props| props.redrawing = false);
+    Context::send_event(handle, Event::Draw(event::Draw { invalidate_rect }));
     LRESULT(0)
 }
 
