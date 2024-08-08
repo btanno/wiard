@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use tokio::sync::oneshot;
 use windows::Win32::{
     Foundation::{HWND, LPARAM, LRESULT, POINT, RECT, SIZE, WPARAM},
-    Graphics::Gdi::{BeginPaint, EndPaint, GetUpdateRect, PAINTSTRUCT},
+    Graphics::Gdi::{BeginPaint, EndPaint, GetUpdateRect, PAINTSTRUCT, ScreenToClient},
     UI::Controls::WM_MOUSELEAVE,
     UI::HiDpi::{EnableNonClientDpiScaling, GetDpiForWindow},
     UI::Input::Ime::{ISC_SHOWUIALLCANDIDATEWINDOW, ISC_SHOWUICOMPOSITIONWINDOW},
@@ -134,12 +134,21 @@ unsafe fn on_mouse_wheel(
     lparam: LPARAM,
 ) -> LRESULT {
     let delta = hiword(wparam.0 as i32);
+    let mouse_state = MouseState::from_params(wparam, lparam);
+    let mut pt = POINT {
+        x: mouse_state.position.x,
+        y: mouse_state.position.y,
+    };
+    let _ = ScreenToClient(hwnd, &mut pt);
     Context::send_event(
         WindowHandle::new(hwnd),
         Event::MouseWheel(event::MouseWheel {
             axis,
             distance: delta as i32,
-            mouse_state: MouseState::from_params(wparam, lparam),
+            mouse_state: MouseState {
+                position: PhysicalPosition::new(pt.x, pt.y),
+                buttons: mouse_state.buttons,
+            },
         }),
     );
     LRESULT(0)
