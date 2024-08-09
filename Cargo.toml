@@ -28,6 +28,7 @@ version = "0.58"
 
 [dependencies.windows]
 version = "0.58"
+    let layout = scene.layout();
 features = [
     "implement",
     "Win32_Foundation",
@@ -61,3 +62,7 @@ features = [
     "Win32_Graphics_Direct2D_Common",
     "Win32_Graphics_Dxgi_Common",
 ]
+
+[package.metadata.docs.rs]
+default-target = "x86_64-pc-windows-msvc"
+targets = []
