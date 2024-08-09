@@ -28,7 +28,6 @@ version = "0.58"
 
 [dependencies.windows]
 version = "0.58"
-    let layout = scene.layout();
 features = [
     "implement",
     "Win32_Foundation",
