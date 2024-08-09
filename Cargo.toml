@@ -1,6 +1,6 @@
 [package]
 name = "wiard"
-version = "0.1.10"
+version = "0.1.11"
 edition = "2021"
 description = "Window handling library for Windows in Rust"
 repository = "https://github.com/btanno/wiard"
