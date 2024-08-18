@@ -4,9 +4,9 @@ use std::sync::atomic::{self, AtomicU64};
 use tokio::sync::oneshot;
 use windows::core::{HSTRING, PCWSTR};
 use windows::Win32::{
-    Foundation::{BOOL, HINSTANCE, HWND, LPARAM, RECT, WPARAM},
+    Foundation::{BOOL, HINSTANCE, HWND, LPARAM, RECT, WPARAM, POINT},
     Graphics::Dwm::*,
-    Graphics::Gdi::{GetStockObject, HBRUSH, WHITE_BRUSH},
+    Graphics::Gdi::{GetStockObject, HBRUSH, WHITE_BRUSH, ScreenToClient},
     System::LibraryLoader::GetModuleHandleW,
     UI::HiDpi::GetDpiForWindow,
     UI::Shell::DragAcceptFiles,
@@ -211,7 +211,10 @@ impl AsyncEventReceiver {
             )),
             WindowKind::InnerWindow(w) => Some((
                 ret.0,
-                AsyncWindowKind::InnerWindow(AsyncInnerWindow { handle: w.handle }),
+                AsyncWindowKind::InnerWindow(AsyncInnerWindow {
+                    parent: w.parent,
+                    handle: w.handle,
+                }),
             )),
         }
     }
@@ -238,7 +241,10 @@ impl AsyncEventReceiver {
                     )),
                     WindowKind::InnerWindow(w) => Ok((
                         ret.0,
-                        AsyncWindowKind::InnerWindow(AsyncInnerWindow { handle: w.handle }),
+                        AsyncWindowKind::InnerWindow(AsyncInnerWindow {
+                            parent: w.parent,
+                            handle: w.handle,
+                        }),
                     )),
                 }
             }
@@ -660,8 +666,9 @@ where
         let (tx, rx) = tokio::sync::oneshot::channel::<Result<WindowHandle>>();
         let props = BuilderProps::new(self);
         UiThread::send_task(move || {
+            let parent = props.parent_inner.unwrap();
             tx.send(create_window(props, |handle| {
-                WindowKind::InnerWindow(InnerWindow { handle })
+                WindowKind::InnerWindow(InnerWindow { parent, handle })
             }))
             .ok();
         });
@@ -680,11 +687,11 @@ mod methods {
     use super::*;
 
     #[inline]
-    pub fn position(handle: WindowHandle) -> oneshot::Receiver<PhysicalPosition<i32>> {
-        let (tx, rx) = oneshot::channel::<PhysicalPosition<i32>>();
+    pub fn position(handle: WindowHandle) -> oneshot::Receiver<ScreenPosition<i32>> {
+        let (tx, rx) = oneshot::channel::<ScreenPosition<i32>>();
         UiThread::send_task(move || {
             let rc = get_window_rect(handle.into());
-            tx.send(PhysicalPosition::new(rc.left, rc.top)).ok();
+            tx.send((rc.left, rc.top).into()).ok();
         });
         rx
     }
@@ -852,7 +859,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn position(&self) -> Option<PhysicalPosition<i32>> {
+    pub fn position(&self) -> Option<ScreenPosition<i32>> {
         let rx = methods::position(self.window_handle());
         rx.blocking_recv().ok()
     }
@@ -969,7 +976,7 @@ impl AsyncWindow {
     }
 
     #[inline]
-    pub async fn position(&self) -> Option<PhysicalPosition<i32>> {
+    pub async fn position(&self) -> Option<ScreenPosition<i32>> {
         let rx = methods::position(self.window_handle());
         rx.await.ok()
     }
@@ -1262,6 +1269,7 @@ where
     #[inline]
     pub fn build(self) -> Result<InnerWindow> {
         let (tx, rx) = tokio::sync::oneshot::channel::<Result<WindowHandle>>();
+        let parent = self.parent_inner.clone();
         let props = BuilderProps::new_inner(self);
         UiThread::send_task(move || {
             tx.send(create_window(props, |handle| {
@@ -1272,7 +1280,10 @@ where
         let Ok(ret) = rx.blocking_recv() else {
             return Err(Error::UiThreadClosed);
         };
-        Ok(InnerWindow { handle: ret? })
+        Ok(InnerWindow {
+            parent,
+            handle: ret?,
+        })
     }
 }
 
@@ -1286,22 +1297,27 @@ where
     pub async fn build(self) -> Result<AsyncInnerWindow> {
         let (tx, rx) = tokio::sync::oneshot::channel::<Result<WindowHandle>>();
         let props = BuilderProps::new_inner(self);
+        let parent = props.parent_inner.unwrap();
         UiThread::send_task(move || {
             tx.send(create_window(props, |handle| {
-                WindowKind::InnerWindow(InnerWindow { handle })
+                WindowKind::InnerWindow(InnerWindow { parent, handle })
             }))
             .ok();
         });
         let Ok(ret) = rx.await else {
             return Err(Error::UiThreadClosed);
         };
-        Ok(AsyncInnerWindow { handle: ret? })
+        Ok(AsyncInnerWindow {
+            parent,
+            handle: ret?,
+        })
     }
 }
 
 /// Represents an inner window.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct InnerWindow {
+    parent: WindowHandle,
     handle: WindowHandle,
 }
 
@@ -1317,8 +1333,17 @@ impl InnerWindow {
 
     #[inline]
     pub fn position(&self) -> Option<PhysicalPosition<i32>> {
-        let rx = methods::position(self.handle);
-        rx.blocking_recv().ok()
+        let self_rx = methods::position(self.handle);
+        let self_pos = self_rx.blocking_recv().ok()?;
+        let position = unsafe {
+            let mut pt = POINT {
+                x: self_pos.x,
+                y: self_pos.y,
+            };
+            let _ = ScreenToClient(self.parent.as_hwnd(), &mut pt);
+            PhysicalPosition::new(pt.x, pt.y)
+        };
+        Some(position)
     }
 
     #[inline]
@@ -1375,6 +1400,7 @@ impl InnerWindow {
 /// Represents an inner window of async version.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct AsyncInnerWindow {
+    parent: WindowHandle,
     handle: WindowHandle,
 }
 
@@ -1392,8 +1418,17 @@ impl AsyncInnerWindow {
 
     #[inline]
     pub async fn position(&self) -> Option<PhysicalPosition<i32>> {
-        let rx = methods::position(self.handle);
-        rx.await.ok()
+        let self_rx = methods::position(self.handle);
+        let self_pos = self_rx.await.ok()?;
+        let position = unsafe {
+            let mut pt = POINT {
+                x: self_pos.x,
+                y: self_pos.y,
+            };
+            let _ = ScreenToClient(self.parent.as_hwnd(), &mut pt);
+            PhysicalPosition::new(pt.x, pt.y)
+        };
+        Some(position)
     }
 
     #[inline]
