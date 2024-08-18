@@ -4,9 +4,9 @@ use std::sync::atomic::{self, AtomicU64};
 use tokio::sync::oneshot;
 use windows::core::{HSTRING, PCWSTR};
 use windows::Win32::{
-    Foundation::{BOOL, HINSTANCE, HWND, LPARAM, RECT, WPARAM},
+    Foundation::{BOOL, HINSTANCE, HWND, LPARAM, RECT, WPARAM, POINT},
     Graphics::Dwm::*,
-    Graphics::Gdi::{GetStockObject, HBRUSH, WHITE_BRUSH},
+    Graphics::Gdi::{GetStockObject, HBRUSH, WHITE_BRUSH, ScreenToClient},
     System::LibraryLoader::GetModuleHandleW,
     UI::HiDpi::GetDpiForWindow,
     UI::Shell::DragAcceptFiles,
@@ -1334,10 +1334,16 @@ impl InnerWindow {
     #[inline]
     pub fn position(&self) -> Option<PhysicalPosition<i32>> {
         let self_rx = methods::position(self.handle);
-        let parent_rx = methods::position(self.parent);
         let self_pos = self_rx.blocking_recv().ok()?;
-        let parent_pos = parent_rx.blocking_recv().ok()?;
-        Some((self_pos.x - parent_pos.x, self_pos.y - parent_pos.y).into())
+        let position = unsafe {
+            let mut pt = POINT {
+                x: self_pos.x,
+                y: self_pos.y,
+            };
+            let _ = ScreenToClient(self.parent.as_hwnd(), &mut pt);
+            PhysicalPosition::new(pt.x, pt.y)
+        };
+        Some(position)
     }
 
     #[inline]
@@ -1413,10 +1419,16 @@ impl AsyncInnerWindow {
     #[inline]
     pub async fn position(&self) -> Option<PhysicalPosition<i32>> {
         let self_rx = methods::position(self.handle);
-        let parent_rx = methods::position(self.parent);
         let self_pos = self_rx.await.ok()?;
-        let parent_pos = parent_rx.await.ok()?;
-        Some((self_pos.x - parent_pos.x, self_pos.y - parent_pos.y).into())
+        let position = unsafe {
+            let mut pt = POINT {
+                x: self_pos.x,
+                y: self_pos.y,
+            };
+            let _ = ScreenToClient(self.parent.as_hwnd(), &mut pt);
+            PhysicalPosition::new(pt.x, pt.y)
+        };
+        Some(position)
     }
 
     #[inline]
