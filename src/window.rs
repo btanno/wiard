@@ -772,7 +772,7 @@ mod methods {
                 0,
                 size.width as i32,
                 size.height as i32,
-                SWP_NOZORDER | SWP_NOSIZE,
+                SWP_NOZORDER | SWP_NOMOVE,
             )
             .ok();
         });
