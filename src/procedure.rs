@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use tokio::sync::oneshot;
 use windows::Win32::{
     Foundation::{HWND, LPARAM, LRESULT, POINT, RECT, SIZE, WPARAM},
-    Graphics::Gdi::{BeginPaint, EndPaint, GetUpdateRect, PAINTSTRUCT, ScreenToClient},
+    Graphics::Gdi::{BeginPaint, EndPaint, GetUpdateRect, ScreenToClient, PAINTSTRUCT},
     UI::Controls::WM_MOUSELEAVE,
     UI::HiDpi::{EnableNonClientDpiScaling, GetDpiForWindow},
     UI::Input::Ime::{ISC_SHOWUIALLCANDIDATEWINDOW, ISC_SHOWUICOMPOSITIONWINDOW},
@@ -275,6 +275,7 @@ unsafe fn on_size(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     let handle = WindowHandle::new(hwnd);
     match wparam.0 as u32 {
         SIZE_MINIMIZED => {
+            Context::set_window_props(handle, |props| props.minimized = true);
             Context::send_event(handle, Event::Minizmized);
         }
         SIZE_MAXIMIZED => {
@@ -282,8 +283,16 @@ unsafe fn on_size(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
             Context::send_event(handle, Event::Maximized(event::Maximized { size }));
         }
         SIZE_RESTORED => {
+            let (resizing, minimized) =
+                Context::get_window_props(handle, |props| (props.resizing, props.minimized))
+                    .unwrap_or((false, false));
             let size = lparam_to_size(lparam);
-            Context::send_event(handle, Event::Restored(event::Restored { size }));
+            if minimized {
+                Context::send_event(handle, Event::Restored(event::Restored { size }));
+                Context::set_window_props(handle, |props| props.minimized = false);
+            } else if !resizing {
+                Context::send_event(handle, Event::Resized(event::Resized { size }));
+            }
         }
         _ => {}
     }
@@ -303,10 +312,19 @@ unsafe fn on_window_pos_changed(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> L
     DefWindowProcW(hwnd, WM_WINDOWPOSCHANGED, wparam, lparam)
 }
 
+unsafe fn on_enter_size_move(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+    let handle = WindowHandle::new(hwnd);
+    Context::set_window_props(handle, |props| props.resizing = true);
+    Context::send_event(handle, Event::EnterResizing);
+    DefWindowProcW(hwnd, WM_ENTERSIZEMOVE, wparam, lparam)
+}
+
 unsafe fn on_exit_size_move(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+    let handle = WindowHandle::new(hwnd);
     let size = get_client_rect(hwnd);
+    Context::set_window_props(handle, |props| props.resizing = false);
     Context::send_event(
-        WindowHandle::new(hwnd),
+        handle,
         Event::Resized(event::Resized {
             size: Size::new(
                 (size.right - size.left) as u32,
@@ -528,6 +546,7 @@ pub(crate) extern "system" fn window_proc(
             WM_SIZING => on_sizing(hwnd, wparam, lparam),
             WM_SIZE => on_size(hwnd, wparam, lparam),
             WM_WINDOWPOSCHANGED => on_window_pos_changed(hwnd, wparam, lparam),
+            WM_ENTERSIZEMOVE => on_enter_size_move(hwnd, wparam, lparam),
             WM_EXITSIZEMOVE => on_exit_size_move(hwnd, wparam, lparam),
             WM_ACTIVATE => on_activate(hwnd, wparam, lparam),
             WM_DPICHANGED => on_dpi_changed(hwnd, wparam, lparam),

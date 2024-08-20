@@ -4,9 +4,9 @@ use std::sync::atomic::{self, AtomicU64};
 use tokio::sync::oneshot;
 use windows::core::{HSTRING, PCWSTR};
 use windows::Win32::{
-    Foundation::{BOOL, HINSTANCE, HWND, LPARAM, RECT, WPARAM, POINT},
+    Foundation::{BOOL, HINSTANCE, HWND, LPARAM, POINT, RECT, WPARAM},
     Graphics::Dwm::*,
-    Graphics::Gdi::{GetStockObject, HBRUSH, WHITE_BRUSH, ScreenToClient},
+    Graphics::Gdi::{GetStockObject, ScreenToClient, HBRUSH, WHITE_BRUSH},
     System::LibraryLoader::GetModuleHandleW,
     UI::HiDpi::GetDpiForWindow,
     UI::Shell::DragAcceptFiles,
@@ -517,6 +517,8 @@ pub(crate) struct WindowProps {
     pub parent: Option<WindowHandle>,
     pub nc_hittest: bool,
     pub redrawing: bool,
+    pub resizing: bool,
+    pub minimized: bool,
 }
 
 fn create_window<Pos, Sz>(
@@ -599,6 +601,8 @@ where
             parent: props.parent,
             nc_hittest: props.nc_hittest,
             redrawing: false,
+            resizing: false,
+            minimized: false,
         };
         Context::register_window(f(handle), window_props, props.event_rx_id);
         if props.visiblity {
@@ -666,9 +670,8 @@ where
         let (tx, rx) = tokio::sync::oneshot::channel::<Result<WindowHandle>>();
         let props = BuilderProps::new(self);
         UiThread::send_task(move || {
-            let parent = props.parent_inner.unwrap();
             tx.send(create_window(props, |handle| {
-                WindowKind::InnerWindow(InnerWindow { parent, handle })
+                WindowKind::Window(Window { handle })
             }))
             .ok();
         });
@@ -1273,7 +1276,7 @@ where
         let props = BuilderProps::new_inner(self);
         UiThread::send_task(move || {
             tx.send(create_window(props, |handle| {
-                WindowKind::Window(Window { handle })
+                WindowKind::InnerWindow(InnerWindow { parent, handle })
             }))
             .ok();
         });
@@ -1296,8 +1299,8 @@ where
     #[inline]
     pub async fn build(self) -> Result<AsyncInnerWindow> {
         let (tx, rx) = tokio::sync::oneshot::channel::<Result<WindowHandle>>();
+        let parent = self.parent_inner.clone();
         let props = BuilderProps::new_inner(self);
-        let parent = props.parent_inner.unwrap();
         UiThread::send_task(move || {
             tx.send(create_window(props, |handle| {
                 WindowKind::InnerWindow(InnerWindow { parent, handle })

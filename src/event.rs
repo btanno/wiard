@@ -34,6 +34,7 @@ pub struct Resizing {
     pub edge: ResizingEdge,
 }
 
+/// An event of resized a window or restored a window from maximized.
 #[derive(Debug)]
 pub struct Resized {
     pub size: PhysicalSize<u32>,
@@ -87,6 +88,11 @@ pub struct CharInput {
     pub c: char,
 }
 
+/// An event of beginning IME composition.
+///
+/// When this event is dropped, this event send an IME candidate window position to the window.
+/// Therefore, UiThread wait until this event is dropped.
+///
 #[derive(Debug)]
 pub struct ImeBeginComposition {
     position: Cell<PhysicalPosition<i32>>,
@@ -142,6 +148,7 @@ pub struct Maximized {
     pub size: PhysicalSize<u32>,
 }
 
+/// An event of restored a window from minimized.
 #[derive(Debug)]
 pub struct Restored {
     pub size: PhysicalSize<u32>,
@@ -185,6 +192,10 @@ pub enum NcHitTestValue {
     Transparent = HTTRANSPARENT as u32,
 }
 
+/// An event of non client area hit test.
+///
+/// UiThread wait until this event is dropped.
+///
 #[derive(Debug)]
 pub struct NcHitTest {
     pub position: PhysicalPosition<i32>,
@@ -203,6 +214,11 @@ impl NcHitTest {
     }
 
     #[inline]
+    pub fn get(&self) -> Option<NcHitTestValue> {
+        self.value.get()
+    }
+
+    #[inline]
     pub fn set(&self, value: Option<NcHitTestValue>) {
         self.value.set(value);
     }
@@ -214,6 +230,12 @@ impl Drop for NcHitTest {
     }
 }
 
+/// An event of request to close the window.
+///
+/// This event is called when the window is set `false` to [`auto_close()`].
+///
+/// [`auto_close()`]: ../struct.WindowBuilder.html#method.auto_close
+///
 #[derive(Clone, Debug)]
 pub struct CloseRequest {
     handle: WindowHandle,
@@ -248,6 +270,7 @@ pub enum Event {
     Inactivate,
     Draw(Draw),
     Moved(Moved),
+    EnterResizing,
     Resizing(Resizing),
     Resized(Resized),
     MouseInput(MouseInput),
