@@ -18,18 +18,18 @@ use windows::Win32::{
 fn enable_dpi_awareness() {
     unsafe {
         if SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2).is_ok() {
-            log::info!("PerMonitorAwareV2");
+            info!("PerMonitorAwareV2");
             return;
         }
         if SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE).is_ok() {
-            log::info!("PerMonitorAware");
+            info!("PerMonitorAware");
             return;
         }
         if SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE).is_ok() {
-            log::info!("PerMonitorAware");
+            info!("PerMonitorAware");
             return;
         }
-        log::warn!("No changed DPI Awareness");
+        warning!("No changed DPI Awareness");
     }
 }
 

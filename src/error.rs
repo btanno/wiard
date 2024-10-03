@@ -24,3 +24,34 @@ pub enum TryRecvError {
 
 /// This type is `Result<T, wiard::TryRecvError>`.
 pub type TryRecvResult<T> = ::core::result::Result<T, TryRecvError>;
+
+macro_rules! error {
+    ($($arg:tt)*) => {
+        #[cfg(feature = "tracing")]
+        tracing::error!($($arg)*);
+        #[cfg(not(feature = "tracing"))]
+        { format_args!($($arg)*); }
+    };
+}
+
+macro_rules! warning {
+    ($($arg:tt)+) => {
+        #[cfg(feature = "tracing")]
+        tracing::warn!($($arg)*);
+        #[cfg(not(feature = "tracing"))]
+        { format_args!($($arg)*); }
+    };
+}
+
+macro_rules! info {
+    ($($arg:tt)*) => {
+        #[cfg(feature = "tracing")]
+        tracing::info!($($arg)*);
+        #[cfg(not(feature = "tracing"))]
+        { format_args!($($arg)*); }
+    };
+}
+
+pub(crate) use error;
+pub(crate) use info;
+pub(crate) use warning;
