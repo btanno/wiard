@@ -553,9 +553,9 @@ where
         let handle = WindowHandle::new(hwnd);
         let dark_mode = BOOL::from(is_dark_mode());
         if dark_mode.as_bool() {
-            log::info!("Dark mode");
+            info!("Dark mode");
         } else {
-            log::info!("Light mode");
+            info!("Light mode");
         }
         let ret = DwmSetWindowAttribute(
             hwnd,
@@ -564,7 +564,7 @@ where
             std::mem::size_of::<BOOL>() as u32,
         );
         if let Err(e) = ret {
-            log::error!("DwmSetWindowAttribute: {e}");
+            error!("DwmSetWindowAttribute: {e}");
         }
         let imm_context = ime::ImmContext::new(handle);
         if props.enable_ime {

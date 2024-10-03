@@ -107,7 +107,7 @@ pub fn is_dark_mode() -> bool {
         )
         .ok();
         if let Err(e) = ret {
-            log::error!("{e}");
+            error!("{e}");
             return false;
         }
         ty == REG_DWORD && data == 0

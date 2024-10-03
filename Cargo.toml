@@ -11,17 +11,18 @@ keywords = ["gui", "windows"]
 
 [features]
 serde = ["dep:serde"]
+tracing = ["dep:tracing"]
 
 [dependencies]
 anyhow = { version = "1.0", features = ["backtrace"] }
 env_logger = "0.11"
 gedv = { version = "0.2", features = ["serde"] }
-log = "0.4"
 num = { version = "0.4", features = ["serde"] }
 raw-window-handle = "0.6"
 serde = { version = "1", features = ["derive"], optional = true }
 thiserror = "1"
 tokio = { version = "1", features = ["sync"] }
+tracing = { version = "0.1", optional = true }
 
 [dependencies.windows-core]
 version = "0.58"

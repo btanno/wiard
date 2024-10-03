@@ -291,7 +291,8 @@ where
             }
             Err(e) => {
                 if !matches!(e, Error::Api(ref e) if e.code() == ERROR_CANCELLED.into()) {
-                    log::error!("{e}");
+                    #[cfg(feature = "tracing")]
+                    tracing::error!("{e}");
                 }
                 tx.send(None).ok();
             }
@@ -446,7 +447,7 @@ where
             }
             Err(e) => {
                 if !matches!(e, Error::Api(ref e) if e.code() == ERROR_CANCELLED.into()) {
-                    log::error!("{e}");
+                    error!("{e}");
                 }
                 tx.send(None).ok();
             }
