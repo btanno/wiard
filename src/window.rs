@@ -451,6 +451,7 @@ struct BuilderProps<Pos, Sz> {
     event_rx_id: u64,
     parent: Option<WindowHandle>,
     parent_inner: Option<WindowHandle>,
+    set_attr: bool,
 }
 
 impl<Sz> BuilderProps<PhysicalPosition<i32>, Sz> {
@@ -478,6 +479,7 @@ impl<Sz> BuilderProps<PhysicalPosition<i32>, Sz> {
             event_rx_id: builder.event_rx.id(),
             parent: builder.parent,
             parent_inner: None,
+            set_attr: true,
         }
     }
 }
@@ -505,6 +507,7 @@ impl<Pos, Sz> BuilderProps<Pos, Sz> {
             event_rx_id: builder.event_rx.id(),
             parent: None,
             parent_inner: Some(builder.parent_inner),
+            set_attr: false,
         }
     }
 }
@@ -557,14 +560,16 @@ where
         } else {
             info!("Light mode");
         }
-        let ret = DwmSetWindowAttribute(
-            hwnd,
-            DWMWA_USE_IMMERSIVE_DARK_MODE,
-            &dark_mode as *const BOOL as *const std::ffi::c_void,
-            std::mem::size_of::<BOOL>() as u32,
-        );
-        if let Err(e) = ret {
-            error!("DwmSetWindowAttribute: {e}");
+        if props.set_attr {
+            let ret = DwmSetWindowAttribute(
+                hwnd,
+                DWMWA_USE_IMMERSIVE_DARK_MODE,
+                &dark_mode as *const BOOL as *const std::ffi::c_void,
+                std::mem::size_of::<BOOL>() as u32,
+            );
+            if let Err(e) = ret {
+                error!("DwmSetWindowAttribute: {e}");
+            }
         }
         let imm_context = ime::ImmContext::new(handle);
         if props.enable_ime {
