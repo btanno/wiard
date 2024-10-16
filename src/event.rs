@@ -4,11 +4,13 @@ use std::path::PathBuf;
 use tokio::sync::oneshot;
 use windows::Win32::{Foundation::LPARAM, UI::WindowsAndMessaging::*};
 
+/// An event when a window request to draw.
 #[derive(Debug)]
 pub struct Draw {
     pub invalidate_rect: PhysicalRect<i32>,
 }
 
+/// An event when window moved.
 #[derive(Debug)]
 pub struct Moved {
     pub position: ScreenPosition<i32>,
@@ -28,18 +30,20 @@ pub enum ResizingEdge {
     BottomRight,
 }
 
+/// An event when resizing a window;
 #[derive(Debug)]
 pub struct Resizing {
     pub size: PhysicalSize<u32>,
     pub edge: ResizingEdge,
 }
 
-/// An event of resized a window or restored a window from maximized.
+/// An event when resized or restored a window from maximized.
 #[derive(Debug)]
 pub struct Resized {
     pub size: PhysicalSize<u32>,
 }
 
+/// An event when a mouse button pressed and released.
 #[derive(Debug)]
 pub struct MouseInput {
     pub button: MouseButton,
@@ -47,21 +51,25 @@ pub struct MouseInput {
     pub mouse_state: MouseState,
 }
 
+/// An event when a mouse cursor moved.
 #[derive(Debug)]
 pub struct CursorMoved {
     pub mouse_state: MouseState,
 }
 
+/// An event when a mouse cursor entered a window.
 #[derive(Debug)]
 pub struct CursorEntered {
     pub mouse_state: MouseState,
 }
 
+/// An event when a mouse cursor left a window.
 #[derive(Debug)]
 pub struct CursorLeft {
     pub mouse_state: MouseState,
 }
 
+// An event when a mouse wheel is rotated.
 #[derive(Debug)]
 pub struct MouseWheel {
     pub axis: MouseWheelAxis,
@@ -69,6 +77,7 @@ pub struct MouseWheel {
     pub mouse_state: MouseState,
 }
 
+/// An event when keyboard is input.
 #[derive(Debug)]
 pub struct KeyInput {
     pub key_code: KeyCode,
@@ -83,6 +92,7 @@ impl KeyInput {
     }
 }
 
+/// An event that receive a keyboard input as the charcter code.
 #[derive(Debug)]
 pub struct CharInput {
     pub c: char,
@@ -125,6 +135,7 @@ impl Drop for ImeBeginComposition {
     }
 }
 
+/// An event when IME composition is updated.
 #[derive(Debug)]
 pub struct ImeUpdateComposition {
     pub chars: Vec<char>,
@@ -132,17 +143,20 @@ pub struct ImeUpdateComposition {
     pub cursor_position: usize,
 }
 
+/// An event when IME composition is finished.
 #[derive(Debug)]
 pub struct ImeEndComposition {
     pub result: Option<String>,
 }
 
+/// An event when IME candidate list is updated.
 #[derive(Debug)]
 pub struct ImeUpdateCandidateList {
     pub selection: usize,
     pub items: Vec<String>,
 }
 
+/// An event of maximized a window.
 #[derive(Debug)]
 pub struct Maximized {
     pub size: PhysicalSize<u32>,
@@ -154,11 +168,13 @@ pub struct Restored {
     pub size: PhysicalSize<u32>,
 }
 
+/// An event of changed DPI.
 #[derive(Debug)]
 pub struct DpiChanged {
     pub new_dpi: u32,
 }
 
+/// An event of dropped files.
 #[derive(Debug)]
 pub struct DropFiles {
     pub paths: Vec<PathBuf>,
@@ -255,6 +271,26 @@ impl CloseRequest {
     }
 }
 
+/// An event which defined by an user.
+#[derive(Debug)]
+pub struct App {
+    pub index: u32,
+    pub value0: usize,
+    pub value1: isize,
+}
+
+impl App {
+    #[inline]
+    pub fn new(index: u32, value0: usize, value1: isize) -> Self {
+        Self {
+            index,
+            value0,
+            value1,
+        }
+    }
+}
+
+/// Other window messages
 #[derive(Debug)]
 pub struct Other {
     pub msg: u32,
@@ -294,5 +330,6 @@ pub enum Event {
     NcHitTest(NcHitTest),
     CloseRequest(CloseRequest),
     Closed,
+    App(App),
     Other(Other),
 }

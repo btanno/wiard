@@ -71,3 +71,5 @@ use utility::*;
 pub use window::*;
 
 pub use utility::is_dark_mode;
+
+pub(crate) use procedure::WM_APP_1;

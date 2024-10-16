@@ -852,6 +852,18 @@ mod methods {
             }
         });
     }
+
+    #[inline]
+    pub fn post_app_event(handle: WindowHandle, app: event::App) {
+        unsafe {
+            PostMessageW(
+                handle.as_hwnd(),
+                WM_APP_1 + app.index,
+                WPARAM(app.value0),
+                LPARAM(app.value1),
+            ).ok();
+        }
+    }
 }
 
 /// Represents a window.
@@ -956,6 +968,11 @@ impl Window {
     #[inline]
     pub fn close(&self) {
         methods::close(self.window_handle());
+    }
+    
+    #[inline]
+    pub fn post_app_event(&self, app: event::App) {
+        methods::post_app_event(self.window_handle(), app);
     }
 
     #[inline]
@@ -1073,6 +1090,11 @@ impl AsyncWindow {
     #[inline]
     pub fn close(&self) {
         methods::close(self.window_handle());
+    }
+
+    #[inline]
+    pub fn post_app_event(&self, app: event::App) {
+        methods::post_app_event(self.window_handle(), app);
     }
 
     #[inline]
@@ -1398,6 +1420,11 @@ impl InnerWindow {
     pub fn set_cursor(&self, cursor: Cursor) {
         methods::set_cursor(self.handle, cursor);
     }
+    
+    #[inline]
+    pub fn post_app_event(&self, app: event::App) {
+        methods::post_app_event(self.handle, app);
+    }
 
     #[inline]
     pub fn raw_handle(&self) -> *mut std::ffi::c_void {
@@ -1482,6 +1509,11 @@ impl AsyncInnerWindow {
     #[inline]
     pub fn set_cursor(&self, cursor: Cursor) {
         methods::set_cursor(self.handle, cursor);
+    }
+
+    #[inline]
+    pub fn post_app_event(&self, app: event::App) {
+        methods::post_app_event(self.handle, app);
     }
 
     #[inline]
