@@ -21,6 +21,8 @@ thread_local! {
     static ENTERED: RefCell<Option<HWND>> = RefCell::new(None);
 }
 
+pub(crate) const WM_APP_1: u32 = WM_APP + 1;
+
 fn set_unwind(e: Box<dyn Any + Send>) {
     UNWIND.with_borrow_mut(|unwind| {
         *unwind = Some(e);
@@ -458,6 +460,19 @@ unsafe fn on_destroy(hwnd: HWND) -> LRESULT {
     LRESULT(0)
 }
 
+unsafe fn on_app(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+    let handle = WindowHandle::new(hwnd);
+    Context::send_event(
+        handle,
+        Event::App(event::App {
+            index: msg - WM_APP_1,
+            value0: wparam.0,
+            value1: lparam.0,
+        }),
+    );
+    LRESULT(0)
+}
+
 fn wparam_to_button(wparam: WPARAM) -> MouseButton {
     match get_xbutton_wparam(wparam) {
         0x0001 => MouseButton::Ex(0),
@@ -536,6 +551,7 @@ pub(crate) extern "system" fn window_proc(
             ),
             WM_MOUSEWHEEL => on_mouse_wheel(hwnd, MouseWheelAxis::Vertical, wparam, lparam),
             WM_MOUSEHWHEEL => on_mouse_wheel(hwnd, MouseWheelAxis::Horizontal, wparam, lparam),
+            WM_APP_1..0xbfff => on_app(hwnd, msg, wparam, lparam),
             WM_KEYDOWN => on_key_input(hwnd, KeyState::Pressed, wparam, lparam),
             WM_KEYUP => on_key_input(hwnd, KeyState::Released, wparam, lparam),
             WM_CHAR => on_char(hwnd, wparam, lparam),
