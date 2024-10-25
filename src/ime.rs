@@ -162,6 +162,9 @@ impl Imc {
 
     pub fn get_composition_string(&self) -> Option<String> {
         let buf = self.composition_string_impl(GCS_COMPSTR)?;
+        if buf.is_empty() {
+            return None;
+        }
         let s = unsafe {
             let buf = std::slice::from_raw_parts(
                 buf.as_ptr() as *const u16,
@@ -180,6 +183,9 @@ impl Imc {
             .collect();
         let clauses: Vec<std::ops::Range<usize>> = {
             let buf = self.composition_string_impl(GCS_COMPCLAUSE)?;
+            if buf.is_empty() {
+                return None;
+            }
             let buf = unsafe {
                 std::slice::from_raw_parts(
                     buf.as_ptr() as *const u32,
@@ -203,6 +209,9 @@ impl Imc {
 
     pub fn get_composition_result(&self) -> Option<String> {
         let buf = self.composition_string_impl(GCS_RESULTSTR)?;
+        if buf.is_empty() {
+            return None;
+        }
         let buf = unsafe {
             std::slice::from_raw_parts(
                 buf.as_ptr() as *const u16,
