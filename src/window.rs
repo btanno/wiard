@@ -34,17 +34,20 @@ pub(crate) fn register_class() {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
-pub struct WindowHandle(isize);
+pub struct WindowHandle(HWND);
 
 impl WindowHandle {
     pub(crate) fn new(hwnd: HWND) -> Self {
-        Self(hwnd.0 as isize)
+        Self(hwnd)
     }
 
     pub(crate) fn as_hwnd(&self) -> HWND {
-        HWND(self.0 as *mut std::ffi::c_void)
+        self.0
     }
 }
+
+unsafe impl Send for WindowHandle {}
+unsafe impl Sync for WindowHandle {}
 
 impl From<WindowHandle> for HWND {
     fn from(value: WindowHandle) -> Self {
@@ -54,7 +57,7 @@ impl From<WindowHandle> for HWND {
 
 impl std::hash::Hash for WindowHandle {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        state.write_isize(self.0);
+        state.write_usize(self.0 .0.addr());
     }
 }
 
@@ -537,7 +540,7 @@ where
         let position = props.position.to_physical(dpi as i32);
         let size = props.inner_size.to_physical(dpi);
         let rc = adjust_window_rect_ex_for_dpi(size, props.style, false, props.ex_style, dpi);
-        let hinstance: HINSTANCE = GetModuleHandleW(None).unwrap().into();
+        let hinstance: Option<HINSTANCE> = Some(GetModuleHandleW(None).unwrap().into());
         let parent = props.parent_inner.as_ref().map(|p| p.as_hwnd());
         let hwnd = CreateWindowExW(
             props.ex_style,
@@ -548,7 +551,7 @@ where
             position.y,
             rc.right - rc.left,
             rc.bottom - rc.top,
-            parent.as_ref(),
+            parent,
             None,
             hinstance,
             None,
@@ -580,7 +583,7 @@ where
         if let Some(icon) = props.icon {
             if let Ok(big) = icon.load(hinstance) {
                 PostMessageW(
-                    hwnd,
+                    Some(hwnd),
                     WM_SETICON,
                     WPARAM(ICON_BIG as usize),
                     LPARAM(big.0 as isize),
@@ -589,7 +592,7 @@ where
             }
             if let Ok(small) = icon.load_small(hinstance) {
                 PostMessageW(
-                    hwnd,
+                    Some(hwnd),
                     WM_SETICON,
                     WPARAM(ICON_SMALL as usize),
                     LPARAM(small.0 as isize),
@@ -789,7 +792,7 @@ mod methods {
     #[inline]
     pub fn close(handle: WindowHandle) {
         UiThread::send_task(move || unsafe {
-            PostMessageW(handle.as_hwnd(), WM_CLOSE, WPARAM(0), LPARAM(0)).ok();
+            PostMessageW(Some(handle.as_hwnd()), WM_CLOSE, WPARAM(0), LPARAM(0)).ok();
         });
     }
 
@@ -845,7 +848,7 @@ mod methods {
             let p = rc.as_ref().map(|p| p as *const RECT);
             let redrawing = Context::get_window_props(handle, |props| props.redrawing);
             if !redrawing.unwrap_or(true) {
-                let _ = RedrawWindow(handle.as_hwnd(), p, None, RDW_INVALIDATE);
+                let _ = RedrawWindow(Some(handle.as_hwnd()), p, None, RDW_INVALIDATE);
                 Context::set_window_props(handle, |props| {
                     props.redrawing = true;
                 });
@@ -857,11 +860,12 @@ mod methods {
     pub fn post_app_event(handle: WindowHandle, app: event::App) {
         unsafe {
             PostMessageW(
-                handle.as_hwnd(),
+                Some(handle.as_hwnd()),
                 WM_APP_1 + app.index,
                 WPARAM(app.value0),
                 LPARAM(app.value1),
-            ).ok();
+            )
+            .ok();
         }
     }
 }
@@ -969,7 +973,7 @@ impl Window {
     pub fn close(&self) {
         methods::close(self.window_handle());
     }
-    
+
     #[inline]
     pub fn post_app_event(&self, app: event::App) {
         methods::post_app_event(self.window_handle(), app);
@@ -1118,12 +1122,9 @@ impl raw_window_handle::HasWindowHandle for Window {
     {
         Ok(unsafe {
             raw_window_handle::WindowHandle::borrow_raw(raw_window_handle::RawWindowHandle::Win32(
-                raw_window_handle::Win32WindowHandle::new(
-                    IsWindow::window_handle(self)
-                        .0
-                        .try_into()
-                        .map_err(|_| raw_window_handle::HandleError::Unavailable)?,
-                ),
+                raw_window_handle::Win32WindowHandle::new(std::mem::transmute(
+                    IsWindow::window_handle(self).0 .0.addr(),
+                )),
             ))
         })
     }
@@ -1137,12 +1138,9 @@ impl raw_window_handle::HasWindowHandle for AsyncWindow {
     {
         Ok(unsafe {
             raw_window_handle::WindowHandle::borrow_raw(raw_window_handle::RawWindowHandle::Win32(
-                raw_window_handle::Win32WindowHandle::new(
-                    IsWindow::window_handle(self)
-                        .0
-                        .try_into()
-                        .map_err(|_| raw_window_handle::HandleError::Unavailable)?,
-                ),
+                raw_window_handle::Win32WindowHandle::new(std::mem::transmute(
+                    IsWindow::window_handle(self).0 .0.addr(),
+                )),
             ))
         })
     }
@@ -1420,7 +1418,7 @@ impl InnerWindow {
     pub fn set_cursor(&self, cursor: Cursor) {
         methods::set_cursor(self.handle, cursor);
     }
-    
+
     #[inline]
     pub fn post_app_event(&self, app: event::App) {
         methods::post_app_event(self.handle, app);
@@ -1530,12 +1528,9 @@ impl raw_window_handle::HasWindowHandle for InnerWindow {
     {
         Ok(unsafe {
             raw_window_handle::WindowHandle::borrow_raw(raw_window_handle::RawWindowHandle::Win32(
-                raw_window_handle::Win32WindowHandle::new(
-                    self.handle
-                        .0
-                        .try_into()
-                        .map_err(|_| raw_window_handle::HandleError::Unavailable)?,
-                ),
+                raw_window_handle::Win32WindowHandle::new(std::mem::transmute(
+                    self.handle.0 .0.addr(),
+                )),
             ))
         })
     }
@@ -1549,12 +1544,9 @@ impl raw_window_handle::HasWindowHandle for AsyncInnerWindow {
     {
         Ok(unsafe {
             raw_window_handle::WindowHandle::borrow_raw(raw_window_handle::RawWindowHandle::Win32(
-                raw_window_handle::Win32WindowHandle::new(
-                    self.handle
-                        .0
-                        .try_into()
-                        .map_err(|_| raw_window_handle::HandleError::Unavailable)?,
-                ),
+                raw_window_handle::Win32WindowHandle::new(std::mem::transmute(
+                    self.handle.0 .0.addr(),
+                )),
             ))
         })
     }
