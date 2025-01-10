@@ -352,7 +352,7 @@ unsafe fn on_dpi_changed(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> LRESULT 
     let rc = *(lparam.0 as *const RECT);
     SetWindowPos(
         hwnd,
-        HWND::default(),
+        None,
         rc.left,
         rc.top,
         rc.right - rc.left,

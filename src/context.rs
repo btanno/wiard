@@ -88,7 +88,7 @@ impl Context {
         if let Some(obj) = obj.as_ref() {
             for child in &obj.children {
                 unsafe {
-                    PostMessageW(child.as_hwnd(), WM_CLOSE, WPARAM(0), LPARAM(0)).ok();
+                    PostMessageW(Some(child.as_hwnd()), WM_CLOSE, WPARAM(0), LPARAM(0)).ok();
                 }
             }
         }

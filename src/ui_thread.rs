@@ -3,7 +3,7 @@ use crate::*;
 use std::os::windows::prelude::*;
 use std::sync::{mpsc, Mutex, OnceLock};
 use windows::Win32::{
-    Foundation::{BOOL, HANDLE, HWND, LPARAM, WPARAM},
+    Foundation::{BOOL, HANDLE, LPARAM, WPARAM},
     System::Com::{
         CoInitializeEx, CoUninitialize, COINIT_APARTMENTTHREADED, COINIT_DISABLE_OLE1DDE,
     },
@@ -56,7 +56,7 @@ impl Thread {
                 std::mem::drop(block_tx);
                 let mut msg = MSG::default();
                 let ret = loop {
-                    let ret = GetMessageW(&mut msg, HWND::default(), 0, 0);
+                    let ret = GetMessageW(&mut msg, None, 0, 0);
                     if ret == BOOL(0) || ret == BOOL(-1) {
                         Context::shutdown();
                         break msg.wParam.0 as u32;

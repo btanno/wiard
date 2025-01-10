@@ -204,7 +204,7 @@ where
         dialog.SetFileTypeIndex(params.file_type_index as u32)?;
     }
     dialog.SetOptions(params.options.into())?;
-    dialog.Show(params.owner.window_handle().as_hwnd())?;
+    dialog.Show(Some(params.owner.window_handle().as_hwnd()))?;
     Ok(())
 }
 

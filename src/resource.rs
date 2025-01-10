@@ -1,10 +1,7 @@
 use crate::*;
 use std::path::{Path, PathBuf};
 use windows::core::{HSTRING, PCWSTR};
-use windows::Win32::{
-    Foundation::{HINSTANCE, HMODULE},
-    UI::WindowsAndMessaging::*,
-};
+use windows::Win32::{Foundation::HINSTANCE, UI::WindowsAndMessaging::*};
 
 /// Represents icons.
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -27,7 +24,7 @@ impl Icon {
         Icon::File(path.as_ref().into())
     }
 
-    pub(crate) fn load(&self, hinst: HINSTANCE) -> Result<HICON> {
+    pub(crate) fn load(&self, hinst: Option<HINSTANCE>) -> Result<HICON> {
         unsafe {
             self.load_impl(
                 hinst,
@@ -37,7 +34,7 @@ impl Icon {
         }
     }
 
-    pub(crate) fn load_small(&self, hinst: HINSTANCE) -> Result<HICON> {
+    pub(crate) fn load_small(&self, hinst: Option<HINSTANCE>) -> Result<HICON> {
         unsafe {
             self.load_impl(
                 hinst,
@@ -47,7 +44,7 @@ impl Icon {
         }
     }
 
-    fn load_impl(&self, hinst: HINSTANCE, cx: i32, cy: i32) -> Result<HICON> {
+    fn load_impl(&self, hinst: Option<HINSTANCE>, cx: i32, cy: i32) -> Result<HICON> {
         unsafe {
             match self {
                 Icon::Resource(id) => {
@@ -64,7 +61,7 @@ impl Icon {
                 Icon::File(path) => {
                     let path = path.to_string_lossy();
                     let handle = LoadImageW(
-                        HMODULE::default(),
+                        None,
                         &HSTRING::from(path.as_ref()),
                         IMAGE_ICON,
                         cx,
@@ -126,7 +123,7 @@ impl Cursor {
 
     pub(crate) fn set(&self) {
         unsafe {
-            SetCursor(LoadCursorW(HINSTANCE::default(), self.system_defined_name()).unwrap());
+            SetCursor(Some(LoadCursorW(None, self.system_defined_name()).unwrap()));
         }
     }
 }
