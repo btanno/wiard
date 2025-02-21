@@ -4,7 +4,7 @@ use windows::Win32::{
     Graphics::Direct2D::Common::*,
     Graphics::Direct2D::*,
     Graphics::Dxgi::Common::*,
-    System::Com::{CoInitializeEx, COINIT_DISABLE_OLE1DDE, COINIT_MULTITHREADED},
+    System::Com::{COINIT_DISABLE_OLE1DDE, COINIT_MULTITHREADED, CoInitializeEx},
 };
 
 fn main() -> anyhow::Result<()> {

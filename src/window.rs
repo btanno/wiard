@@ -2,16 +2,16 @@ use crate::*;
 use std::any::Any;
 use std::sync::atomic::{self, AtomicU64};
 use tokio::sync::oneshot;
-use windows::core::{HSTRING, PCWSTR};
 use windows::Win32::{
     Foundation::{BOOL, HINSTANCE, HWND, LPARAM, POINT, RECT, WPARAM},
     Graphics::Dwm::*,
-    Graphics::Gdi::{GetStockObject, ScreenToClient, HBRUSH, WHITE_BRUSH},
+    Graphics::Gdi::{GetStockObject, HBRUSH, ScreenToClient, WHITE_BRUSH},
     System::LibraryLoader::GetModuleHandleW,
     UI::HiDpi::GetDpiForWindow,
     UI::Shell::DragAcceptFiles,
     UI::WindowsAndMessaging::*,
 };
+use windows::core::{HSTRING, PCWSTR};
 
 const WINDOW_CLASS_NAME: PCWSTR = windows::core::w!("wiard_window_class");
 
@@ -57,7 +57,7 @@ impl From<WindowHandle> for HWND {
 
 impl std::hash::Hash for WindowHandle {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        state.write_usize(self.0 .0.addr());
+        state.write_usize(self.0.0.addr());
     }
 }
 
@@ -693,7 +693,7 @@ where
 }
 
 mod methods {
-    use windows::Win32::Graphics::Gdi::{RedrawWindow, RDW_INVALIDATE};
+    use windows::Win32::Graphics::Gdi::{RDW_INVALIDATE, RedrawWindow};
 
     use super::*;
 
@@ -1123,7 +1123,7 @@ impl raw_window_handle::HasWindowHandle for Window {
         Ok(unsafe {
             raw_window_handle::WindowHandle::borrow_raw(raw_window_handle::RawWindowHandle::Win32(
                 raw_window_handle::Win32WindowHandle::new(std::mem::transmute(
-                    IsWindow::window_handle(self).0 .0.addr(),
+                    IsWindow::window_handle(self).0.0.addr(),
                 )),
             ))
         })
@@ -1139,7 +1139,7 @@ impl raw_window_handle::HasWindowHandle for AsyncWindow {
         Ok(unsafe {
             raw_window_handle::WindowHandle::borrow_raw(raw_window_handle::RawWindowHandle::Win32(
                 raw_window_handle::Win32WindowHandle::new(std::mem::transmute(
-                    IsWindow::window_handle(self).0 .0.addr(),
+                    IsWindow::window_handle(self).0.0.addr(),
                 )),
             ))
         })
@@ -1529,7 +1529,7 @@ impl raw_window_handle::HasWindowHandle for InnerWindow {
         Ok(unsafe {
             raw_window_handle::WindowHandle::borrow_raw(raw_window_handle::RawWindowHandle::Win32(
                 raw_window_handle::Win32WindowHandle::new(std::mem::transmute(
-                    self.handle.0 .0.addr(),
+                    self.handle.0.0.addr(),
                 )),
             ))
         })
@@ -1545,7 +1545,7 @@ impl raw_window_handle::HasWindowHandle for AsyncInnerWindow {
         Ok(unsafe {
             raw_window_handle::WindowHandle::borrow_raw(raw_window_handle::RawWindowHandle::Win32(
                 raw_window_handle::Win32WindowHandle::new(std::mem::transmute(
-                    self.handle.0 .0.addr(),
+                    self.handle.0.0.addr(),
                 )),
             ))
         })

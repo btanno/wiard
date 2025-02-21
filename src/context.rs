@@ -2,8 +2,8 @@ use crate::*;
 use std::any::Any;
 use std::collections::HashMap;
 use std::sync::{
-    atomic::{self, AtomicU64},
     Mutex, OnceLock,
+    atomic::{self, AtomicU64},
 };
 use windows::Win32::{
     Foundation::{LPARAM, WPARAM},

@@ -1,6 +1,5 @@
 use crate::*;
 use std::cell::{Cell, OnceCell, RefCell};
-use windows::core::Interface;
 use windows::Win32::{
     Foundation::{BOOL, HWND, POINT, RECT},
     System::Com::*,
@@ -8,6 +7,7 @@ use windows::Win32::{
     UI::Input::KeyboardAndMouse::GetFocus,
     UI::TextServices::*,
 };
+use windows::core::Interface;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 struct ImcHandle(isize);
