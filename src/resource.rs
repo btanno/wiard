@@ -1,7 +1,7 @@
 use crate::*;
 use std::path::{Path, PathBuf};
-use windows::core::{HSTRING, PCWSTR};
 use windows::Win32::{Foundation::HINSTANCE, UI::WindowsAndMessaging::*};
+use windows::core::{HSTRING, PCWSTR};
 
 /// Represents icons.
 #[derive(Clone, PartialEq, Eq, Debug)]

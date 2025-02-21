@@ -1,16 +1,16 @@
 use crate::*;
 
 use std::os::windows::prelude::*;
-use std::sync::{mpsc, Mutex, OnceLock};
+use std::sync::{Mutex, OnceLock, mpsc};
 use windows::Win32::{
     Foundation::{BOOL, HANDLE, LPARAM, WPARAM},
     System::Com::{
-        CoInitializeEx, CoUninitialize, COINIT_APARTMENTTHREADED, COINIT_DISABLE_OLE1DDE,
+        COINIT_APARTMENTTHREADED, COINIT_DISABLE_OLE1DDE, CoInitializeEx, CoUninitialize,
     },
     System::Threading::GetThreadId,
     UI::HiDpi::*,
     UI::WindowsAndMessaging::{
-        DispatchMessageW, GetMessageW, IsGUIThread, PostThreadMessageW, TranslateMessage, MSG,
+        DispatchMessageW, GetMessageW, IsGUIThread, MSG, PostThreadMessageW, TranslateMessage,
         WM_APP,
     },
 };

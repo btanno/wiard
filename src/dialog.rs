@@ -1,9 +1,9 @@
 use crate::*;
 use std::path::PathBuf;
 use tokio::sync::oneshot;
-use windows::core::{Interface, HSTRING, PCWSTR, PWSTR};
 use windows::Win32::Foundation::ERROR_CANCELLED;
 use windows::Win32::{System::Com::*, UI::Shell::Common::*, UI::Shell::*};
+use windows::core::{HSTRING, Interface, PCWSTR, PWSTR};
 
 /// Represents options of dialogs.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -166,65 +166,69 @@ where
     W: IsWindow,
     T: Interface,
 {
-    let dialog: IFileDialog = dialog.cast().unwrap();
-    if let Some(title) = params.title {
-        dialog.SetTitle(&HSTRING::from(title))?;
+    unsafe {
+        let dialog: IFileDialog = dialog.cast().unwrap();
+        if let Some(title) = params.title {
+            dialog.SetTitle(&HSTRING::from(title))?;
+        }
+        if let Some(label) = params.ok_button_label {
+            dialog.SetOkButtonLabel(&HSTRING::from(label))?;
+        }
+        if let Some(path) = params.default_directory {
+            let path = path.canonicalize()?;
+            let path = path.to_string_lossy();
+            let path = path.as_ref().trim_start_matches(r"\\?\");
+            let item: IShellItem = SHCreateItemFromParsingName(&HSTRING::from(path), None)?;
+            dialog.SetDefaultFolder(&item)?;
+        }
+        if let Some(ext) = params.default_extension {
+            dialog.SetDefaultExtension(&HSTRING::from(ext))?;
+        }
+        if let Some(label) = params.file_name_label {
+            dialog.SetFileNameLabel(&HSTRING::from(label))?;
+        }
+        if !params.file_types.is_empty() {
+            assert!(params.file_types.len() <= u32::MAX as usize);
+            let buffer = params
+                .file_types
+                .iter()
+                .map(|ft| (HSTRING::from(&ft.name), HSTRING::from(&ft.spec)))
+                .collect::<Vec<_>>();
+            let file_types = buffer
+                .iter()
+                .map(|(name, spec)| COMDLG_FILTERSPEC {
+                    pszName: PCWSTR(name.as_ptr()),
+                    pszSpec: PCWSTR(spec.as_ptr()),
+                })
+                .collect::<Vec<_>>();
+            dialog.SetFileTypes(&file_types)?;
+            dialog.SetFileTypeIndex(params.file_type_index as u32)?;
+        }
+        dialog.SetOptions(params.options.into())?;
+        dialog.Show(Some(params.owner.window_handle().as_hwnd()))?;
+        Ok(())
     }
-    if let Some(label) = params.ok_button_label {
-        dialog.SetOkButtonLabel(&HSTRING::from(label))?;
-    }
-    if let Some(path) = params.default_directory {
-        let path = path.canonicalize()?;
-        let path = path.to_string_lossy();
-        let path = path.as_ref().trim_start_matches(r"\\?\");
-        let item: IShellItem = SHCreateItemFromParsingName(&HSTRING::from(path), None)?;
-        dialog.SetDefaultFolder(&item)?;
-    }
-    if let Some(ext) = params.default_extension {
-        dialog.SetDefaultExtension(&HSTRING::from(ext))?;
-    }
-    if let Some(label) = params.file_name_label {
-        dialog.SetFileNameLabel(&HSTRING::from(label))?;
-    }
-    if !params.file_types.is_empty() {
-        assert!(params.file_types.len() <= u32::MAX as usize);
-        let buffer = params
-            .file_types
-            .iter()
-            .map(|ft| (HSTRING::from(&ft.name), HSTRING::from(&ft.spec)))
-            .collect::<Vec<_>>();
-        let file_types = buffer
-            .iter()
-            .map(|(name, spec)| COMDLG_FILTERSPEC {
-                pszName: PCWSTR(name.as_ptr()),
-                pszSpec: PCWSTR(spec.as_ptr()),
-            })
-            .collect::<Vec<_>>();
-        dialog.SetFileTypes(&file_types)?;
-        dialog.SetFileTypeIndex(params.file_type_index as u32)?;
-    }
-    dialog.SetOptions(params.options.into())?;
-    dialog.Show(Some(params.owner.window_handle().as_hwnd()))?;
-    Ok(())
 }
 
 struct DisplayName(PWSTR);
 
 impl DisplayName {
     unsafe fn to_path_buf(&self) -> Result<PathBuf> {
-        let len = (0..isize::MAX)
-            .position(|i| *self.0 .0.offset(i) == 0)
-            .ok_or(std::io::Error::from(std::io::ErrorKind::InvalidData))?;
-        let slice = std::slice::from_raw_parts(self.0 .0, len);
-        let path: PathBuf = String::from_utf16_lossy(slice).into();
-        Ok(path)
+        unsafe {
+            let len = (0..isize::MAX)
+                .position(|i| *self.0.0.offset(i) == 0)
+                .ok_or(std::io::Error::from(std::io::ErrorKind::InvalidData))?;
+            let slice = std::slice::from_raw_parts(self.0.0, len);
+            let path: PathBuf = String::from_utf16_lossy(slice).into();
+            Ok(path)
+        }
     }
 }
 
 impl Drop for DisplayName {
     fn drop(&mut self) {
         unsafe {
-            CoTaskMemFree(Some(self.0 .0 as _));
+            CoTaskMemFree(Some(self.0.0 as _));
         }
     }
 }

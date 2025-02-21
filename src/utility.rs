@@ -1,9 +1,9 @@
 use crate::*;
 use windows::Win32::{
     Foundation::*,
-    Graphics::Gdi::{MonitorFromPoint, MONITOR_DEFAULTTOPRIMARY},
+    Graphics::Gdi::{MONITOR_DEFAULTTOPRIMARY, MonitorFromPoint},
     System::Registry::{
-        RegGetValueW, HKEY_CURRENT_USER, REG_DWORD, REG_VALUE_TYPE, RRF_RT_REG_DWORD,
+        HKEY_CURRENT_USER, REG_DWORD, REG_VALUE_TYPE, RRF_RT_REG_DWORD, RegGetValueW,
     },
     UI::HiDpi::*,
     UI::WindowsAndMessaging::*,

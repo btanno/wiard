@@ -26,8 +26,7 @@ fn post_app_event_test() {
             }
         }
     });
-    if let Err(mpsc::RecvTimeoutError::Timeout) =
-        rx.recv_timeout(std::time::Duration::from_secs(3))
+    if let Err(mpsc::RecvTimeoutError::Timeout) = rx.recv_timeout(std::time::Duration::from_secs(3))
     {
         panic!("timeout");
     }
