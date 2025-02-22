@@ -3,7 +3,7 @@ use std::any::Any;
 use std::sync::atomic::{self, AtomicU64};
 use tokio::sync::oneshot;
 use windows::Win32::{
-    Foundation::{BOOL, HINSTANCE, HWND, LPARAM, POINT, RECT, WPARAM},
+    Foundation::{HINSTANCE, HWND, LPARAM, POINT, RECT, WPARAM},
     Graphics::Dwm::*,
     Graphics::Gdi::{GetStockObject, HBRUSH, ScreenToClient, WHITE_BRUSH},
     System::LibraryLoader::GetModuleHandleW,
@@ -11,7 +11,7 @@ use windows::Win32::{
     UI::Shell::DragAcceptFiles,
     UI::WindowsAndMessaging::*,
 };
-use windows::core::{HSTRING, PCWSTR};
+use windows::core::{BOOL, HSTRING, PCWSTR};
 
 const WINDOW_CLASS_NAME: PCWSTR = windows::core::w!("wiard_window_class");
 

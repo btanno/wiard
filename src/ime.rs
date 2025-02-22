@@ -1,13 +1,13 @@
 use crate::*;
 use std::cell::{Cell, OnceCell, RefCell};
 use windows::Win32::{
-    Foundation::{BOOL, HWND, POINT, RECT},
+    Foundation::{HWND, POINT, RECT},
     System::Com::*,
     UI::Input::Ime::*,
     UI::Input::KeyboardAndMouse::GetFocus,
     UI::TextServices::*,
 };
-use windows::core::Interface;
+use windows::core::{BOOL, Interface};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 struct ImcHandle(isize);

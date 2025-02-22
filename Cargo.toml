@@ -16,7 +16,7 @@ tracing = ["dep:tracing"]
 [dependencies]
 anyhow = { version = "1.0", features = ["backtrace"] }
 env_logger = "0.11"
-gedv = { version = "0.2", features = ["serde"] }
+gedv = { version = "0.3", features = ["serde"] }
 num = { version = "0.4", features = ["serde"] }
 raw-window-handle = "0.6"
 serde = { version = "1", features = ["derive"], optional = true }
@@ -25,10 +25,10 @@ tokio = { version = "1", features = ["sync"] }
 tracing = { version = "0.1", optional = true }
 
 [dependencies.windows-core]
-version = "0.59"
+version = "0.60"
 
 [dependencies.windows]
-version = "0.59"
+version = "0.60"
 features = [
     "Win32_Foundation",
     "Win32_Graphics_Gdi",
@@ -55,7 +55,7 @@ features = [
 tokio = { version = "1", features = ["full"] }
 
 [dev-dependencies.windows]
-version = "0.59"
+version = "0.60"
 features = [
     "Win32_Graphics_Direct2D",
     "Win32_Graphics_Direct2D_Common",

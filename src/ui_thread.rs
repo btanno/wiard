@@ -3,7 +3,7 @@ use crate::*;
 use std::os::windows::prelude::*;
 use std::sync::{Mutex, OnceLock, mpsc};
 use windows::Win32::{
-    Foundation::{BOOL, HANDLE, LPARAM, WPARAM},
+    Foundation::{HANDLE, LPARAM, WPARAM},
     System::Com::{
         COINIT_APARTMENTTHREADED, COINIT_DISABLE_OLE1DDE, CoInitializeEx, CoUninitialize,
     },
@@ -14,6 +14,7 @@ use windows::Win32::{
         WM_APP,
     },
 };
+use windows::core::BOOL;
 
 fn enable_dpi_awareness() {
     unsafe {
