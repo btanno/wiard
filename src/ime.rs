@@ -252,7 +252,7 @@ impl TextService {
 }
 
 thread_local! {
-    static TEXT_SERVICE: OnceCell<TextService> = OnceCell::new();
+    static TEXT_SERVICE: OnceCell<TextService> = const { OnceCell::new() };
 }
 
 fn thread_mgr() -> ITfThreadMgr {

@@ -18,7 +18,7 @@ use windows::Win32::{
 
 thread_local! {
     static UNWIND: RefCell<Option<Box<dyn Any + Send>>> = RefCell::new(None);
-    static ENTERED: RefCell<Option<HWND>> = RefCell::new(None);
+    static ENTERED: RefCell<Option<HWND>> = const { RefCell::new(None) };
 }
 
 pub(crate) const WM_APP_1: u32 = WM_APP + 1;
