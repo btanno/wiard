@@ -620,7 +620,7 @@ where
     }
 }
 
-impl<'a, Title, Sz, Sty> WindowBuilder<'a, EventReceiver, Title, Sz, Sty>
+impl<Title, Sz, Sty> WindowBuilder<'_, EventReceiver, Title, Sz, Sty>
 where
     Title: Into<String>,
     Sz: ToPhysical<u32, Output<u32> = PhysicalSize<u32>> + Send + 'static,
@@ -643,7 +643,7 @@ where
     }
 }
 
-impl<'a, Title, Sz, Sty> WindowBuilder<'a, AsyncEventReceiver, Title, Sz, Sty>
+impl<Title, Sz, Sty> WindowBuilder<'_, AsyncEventReceiver, Title, Sz, Sty>
 where
     Title: Into<String>,
     Sz: ToPhysical<u32, Output<u32> = PhysicalSize<u32>> + Send + 'static,
@@ -666,7 +666,7 @@ where
     }
 }
 
-impl<'a, Title, Sz> std::future::IntoFuture for WindowBuilder<'a, AsyncEventReceiver, Title, Sz>
+impl<Title, Sz> std::future::IntoFuture for WindowBuilder<'_, AsyncEventReceiver, Title, Sz>
 where
     Title: Into<String>,
     Sz: ToPhysical<u32, Output<u32> = PhysicalSize<u32>> + Send + 'static,
@@ -1122,7 +1122,10 @@ impl raw_window_handle::HasWindowHandle for Window {
     {
         Ok(unsafe {
             raw_window_handle::WindowHandle::borrow_raw(raw_window_handle::RawWindowHandle::Win32(
-                raw_window_handle::Win32WindowHandle::new(std::mem::transmute(
+                raw_window_handle::Win32WindowHandle::new(std::mem::transmute::<
+                    usize,
+                    std::num::NonZero<isize>,
+                >(
                     IsWindow::window_handle(self).0.0.addr(),
                 )),
             ))
@@ -1138,7 +1141,10 @@ impl raw_window_handle::HasWindowHandle for AsyncWindow {
     {
         Ok(unsafe {
             raw_window_handle::WindowHandle::borrow_raw(raw_window_handle::RawWindowHandle::Win32(
-                raw_window_handle::Win32WindowHandle::new(std::mem::transmute(
+                raw_window_handle::Win32WindowHandle::new(std::mem::transmute::<
+                    usize,
+                    std::num::NonZero<isize>,
+                >(
                     IsWindow::window_handle(self).0.0.addr(),
                 )),
             ))
@@ -1288,7 +1294,7 @@ impl<'a, Rx, Pos, Sz> InnerWindowBuilder<'a, Rx, Pos, Sz> {
     }
 }
 
-impl<'a, Pos, Sz> InnerWindowBuilder<'a, EventReceiver, Pos, Sz>
+impl<Pos, Sz> InnerWindowBuilder<'_, EventReceiver, Pos, Sz>
 where
     Pos: ToPhysical<i32, Output<i32> = PhysicalPosition<i32>> + Send + 'static,
     Sz: ToPhysical<u32, Output<u32> = PhysicalSize<u32>> + Send + 'static,
@@ -1297,7 +1303,7 @@ where
     #[inline]
     pub fn build(self) -> Result<InnerWindow> {
         let (tx, rx) = tokio::sync::oneshot::channel::<Result<WindowHandle>>();
-        let parent = self.parent_inner.clone();
+        let parent = self.parent_inner;
         let props = BuilderProps::new_inner(self);
         UiThread::send_task(move || {
             tx.send(create_window(props, |handle| {
@@ -1315,7 +1321,7 @@ where
     }
 }
 
-impl<'a, Pos, Sz> InnerWindowBuilder<'a, AsyncEventReceiver, Pos, Sz>
+impl<Pos, Sz> InnerWindowBuilder<'_, AsyncEventReceiver, Pos, Sz>
 where
     Pos: ToPhysical<i32, Output<i32> = PhysicalPosition<i32>> + Send + 'static,
     Sz: ToPhysical<u32, Output<u32> = PhysicalSize<u32>> + Send + 'static,
@@ -1324,7 +1330,7 @@ where
     #[inline]
     pub async fn build(self) -> Result<AsyncInnerWindow> {
         let (tx, rx) = tokio::sync::oneshot::channel::<Result<WindowHandle>>();
-        let parent = self.parent_inner.clone();
+        let parent = self.parent_inner;
         let props = BuilderProps::new_inner(self);
         UiThread::send_task(move || {
             tx.send(create_window(props, |handle| {
@@ -1528,9 +1534,10 @@ impl raw_window_handle::HasWindowHandle for InnerWindow {
     {
         Ok(unsafe {
             raw_window_handle::WindowHandle::borrow_raw(raw_window_handle::RawWindowHandle::Win32(
-                raw_window_handle::Win32WindowHandle::new(std::mem::transmute(
-                    self.handle.0.0.addr(),
-                )),
+                raw_window_handle::Win32WindowHandle::new(std::mem::transmute::<
+                    usize,
+                    std::num::NonZero<isize>,
+                >(self.handle.0.0.addr())),
             ))
         })
     }
@@ -1544,9 +1551,10 @@ impl raw_window_handle::HasWindowHandle for AsyncInnerWindow {
     {
         Ok(unsafe {
             raw_window_handle::WindowHandle::borrow_raw(raw_window_handle::RawWindowHandle::Win32(
-                raw_window_handle::Win32WindowHandle::new(std::mem::transmute(
-                    self.handle.0.0.addr(),
-                )),
+                raw_window_handle::Win32WindowHandle::new(std::mem::transmute::<
+                    usize,
+                    std::num::NonZero<isize>,
+                >(self.handle.0.0.addr())),
             ))
         })
     }

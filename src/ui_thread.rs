@@ -149,7 +149,7 @@ impl UiThread {
             .unwrap()
             .th
             .as_ref()
-            .map_or(true, |th| th.is_finished())
+            .is_none_or(|th| th.is_finished())
     }
 
     /// For specifying a receiver to panic when UI thread panics.
