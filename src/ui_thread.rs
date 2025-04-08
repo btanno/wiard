@@ -11,7 +11,6 @@ use windows::Win32::{
     UI::HiDpi::*,
     UI::WindowsAndMessaging::{
         DispatchMessageW, GetMessageW, IsGUIThread, MSG, PostThreadMessageW, TranslateMessage,
-        WM_APP,
     },
 };
 use windows::core::BOOL;
@@ -33,8 +32,6 @@ fn enable_dpi_awareness() {
         warning!("No changed DPI Awareness");
     }
 }
-
-pub(crate) const WM_POST_TASK: u32 = WM_APP;
 
 struct Task(Box<dyn FnOnce() + Send>);
 
@@ -63,7 +60,7 @@ impl Thread {
                         break msg.wParam.0 as u32;
                     }
                     match msg.message {
-                        WM_POST_TASK => {
+                        WM_APP_POST_TASK => {
                             let ret = std::panic::catch_unwind(|| {
                                 for task in task_rx.try_iter() {
                                     task.0();
@@ -104,7 +101,7 @@ impl Thread {
 
     fn send_task(&self, f: impl FnOnce() + Send + 'static) {
         self.task_tx.send(Task(Box::new(f))).ok();
-        self.post_message(WM_POST_TASK, WPARAM(0), LPARAM(0));
+        self.post_message(WM_APP_POST_TASK, WPARAM(0), LPARAM(0));
     }
 }
 

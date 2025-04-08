@@ -861,7 +861,7 @@ mod methods {
         unsafe {
             PostMessageW(
                 Some(handle.as_hwnd()),
-                WM_APP_1 + app.index,
+                OFFSETED_WM_APP + app.index,
                 WPARAM(app.value0),
                 LPARAM(app.value1),
             )

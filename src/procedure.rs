@@ -21,8 +21,6 @@ thread_local! {
     static ENTERED: RefCell<Option<HWND>> = const { RefCell::new(None) };
 }
 
-pub(crate) const WM_APP_1: u32 = WM_APP + 1;
-
 fn set_unwind(e: Box<dyn Any + Send>) {
     UNWIND.with_borrow_mut(|unwind| {
         *unwind = Some(e);
@@ -506,9 +504,74 @@ unsafe fn on_app(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESUL
     Context::send_event(
         handle,
         Event::App(event::App {
-            index: msg - WM_APP_1,
+            index: msg - OFFSETED_WM_APP,
             value0: wparam.0,
             value1: lparam.0,
+        }),
+    );
+    LRESULT(0)
+}
+
+unsafe fn on_notify_icon(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+    use windows::Win32::UI::Shell::*;
+
+    const NIN_KEYSELECT: u32 = NIN_SELECT | NINF_KEY;
+    let handle = WindowHandle::new(hwnd);
+    let msg = loword(lparam.0 as i32) as u32;
+    let id = hiword(lparam.0 as i32) as u32;
+    let pos_param = LPARAM(wparam.0 as isize);
+    let position = ScreenPosition::new(
+        get_x_lparam(pos_param) as i32,
+        get_y_lparam(pos_param) as i32,
+    );
+    let event = match msg {
+        WM_MOUSEMOVE => NotifyIconEvent::CursorMoved(position),
+        WM_LBUTTONDOWN => NotifyIconEvent::MouseInput(notify_icon::event::MouseInput {
+            button: MouseButton::Left,
+            button_state: ButtonState::Pressed,
+            position,
+        }),
+        WM_RBUTTONDOWN => NotifyIconEvent::MouseInput(notify_icon::event::MouseInput {
+            button: MouseButton::Right,
+            button_state: ButtonState::Pressed,
+            position,
+        }),
+        WM_MBUTTONDOWN => NotifyIconEvent::MouseInput(notify_icon::event::MouseInput {
+            button: MouseButton::Middle,
+            button_state: ButtonState::Pressed,
+            position,
+        }),
+        WM_LBUTTONUP => NotifyIconEvent::MouseInput(notify_icon::event::MouseInput {
+            button: MouseButton::Left,
+            button_state: ButtonState::Released,
+            position,
+        }),
+        WM_RBUTTONUP => NotifyIconEvent::MouseInput(notify_icon::event::MouseInput {
+            button: MouseButton::Right,
+            button_state: ButtonState::Released,
+            position,
+        }),
+        WM_MBUTTONUP => NotifyIconEvent::MouseInput(notify_icon::event::MouseInput {
+            button: MouseButton::Middle,
+            button_state: ButtonState::Released,
+            position,
+        }),
+        WM_CONTEXTMENU => NotifyIconEvent::ContextMenu(position),
+        NIN_POPUPOPEN => NotifyIconEvent::PopupOpen(position),
+        NIN_POPUPCLOSE => NotifyIconEvent::PopupClose,
+        NIN_SELECT => NotifyIconEvent::Select(position),
+        NIN_KEYSELECT => NotifyIconEvent::KeySelect(position),
+        _ => NotifyIconEvent::Other(event::Other {
+            msg,
+            wparam: wparam.0,
+            lparam: lparam.0,
+        }),
+    };
+    Context::send_event(
+        handle,
+        Event::NotifyIcon(event::NotifyIcon {
+            id: NotifyIcon::from_id(id),
+            event,
         }),
     );
     LRESULT(0)
@@ -592,10 +655,11 @@ pub(crate) extern "system" fn window_proc(
             ),
             WM_MOUSEWHEEL => on_mouse_wheel(hwnd, MouseWheelAxis::Vertical, wparam, lparam),
             WM_MOUSEHWHEEL => on_mouse_wheel(hwnd, MouseWheelAxis::Horizontal, wparam, lparam),
-            WM_APP_1..0xbfff => on_app(hwnd, msg, wparam, lparam),
+            OFFSETED_WM_APP..0xbfff => on_app(hwnd, msg, wparam, lparam),
             WM_KEYDOWN => on_key_input(hwnd, KeyState::Pressed, wparam, lparam),
             WM_KEYUP => on_key_input(hwnd, KeyState::Released, wparam, lparam),
             WM_CHAR => on_char(hwnd, wparam, lparam),
+            WM_APP_NOTIFY_ICON => on_notify_icon(hwnd, wparam, lparam),
             WM_IME_SETCONTEXT => on_ime_set_context(hwnd, wparam, lparam),
             WM_IME_STARTCOMPOSITION => on_ime_start_composition(hwnd, wparam, lparam),
             WM_IME_COMPOSITION => on_ime_composition(hwnd, wparam, lparam),

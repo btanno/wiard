@@ -49,9 +49,11 @@ mod dialog;
 mod error;
 pub mod event;
 pub mod ime;
+mod messages;
 mod procedure;
 mod resource;
 pub mod style;
+pub mod notify_icon;
 mod ui_thread;
 mod utility;
 mod window;
@@ -63,13 +65,13 @@ pub use dialog::{FileDialogOptions, FileOpenDialog};
 pub use error::*;
 #[doc(inline)]
 pub use event::{Event, NcHitTestValue, ResizingEdge};
+use messages::*;
 pub use resource::*;
 #[doc(inline)]
 pub use style::*;
+pub use notify_icon::*;
 pub use ui_thread::UiThread;
 use utility::*;
 pub use window::*;
 
 pub use utility::is_dark_mode;
-
-pub(crate) use procedure::WM_APP_1;
