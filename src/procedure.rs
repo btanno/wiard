@@ -504,7 +504,7 @@ unsafe fn on_app(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESUL
     Context::send_event(
         handle,
         Event::App(event::App {
-            index: msg - OFFSETED_WM_APP,
+            index: msg - OFFSET_WM_APP,
             value0: wparam.0,
             value1: lparam.0,
         }),
@@ -655,7 +655,7 @@ pub(crate) extern "system" fn window_proc(
             ),
             WM_MOUSEWHEEL => on_mouse_wheel(hwnd, MouseWheelAxis::Vertical, wparam, lparam),
             WM_MOUSEHWHEEL => on_mouse_wheel(hwnd, MouseWheelAxis::Horizontal, wparam, lparam),
-            OFFSETED_WM_APP..0xbfff => on_app(hwnd, msg, wparam, lparam),
+            OFFSET_WM_APP..0xbfff => on_app(hwnd, msg, wparam, lparam),
             WM_KEYDOWN => on_key_input(hwnd, KeyState::Pressed, wparam, lparam),
             WM_KEYUP => on_key_input(hwnd, KeyState::Released, wparam, lparam),
             WM_CHAR => on_char(hwnd, wparam, lparam),
