@@ -290,6 +290,26 @@ impl App {
     }
 }
 
+#[derive(Debug)]
+pub struct NotifyIcon {
+    pub id: super::NotifyIcon,
+    pub event: NotifyIconEvent,
+}
+
+impl PartialEq<super::NotifyIcon> for NotifyIcon {
+    #[inline]
+    fn eq(&self, other: &super::NotifyIcon) -> bool {
+        &self.id == other
+    }
+}
+
+impl PartialEq<NotifyIcon> for super::NotifyIcon {
+    #[inline]
+    fn eq(&self, other: &NotifyIcon) -> bool {
+        self == &other.id
+    }
+}
+
 /// Other window messages
 #[derive(Debug)]
 pub struct Other {
@@ -331,5 +351,6 @@ pub enum Event {
     CloseRequest(CloseRequest),
     Closed,
     App(App),
+    NotifyIcon(NotifyIcon),
     Other(Other),
 }
