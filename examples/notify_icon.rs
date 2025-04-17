@@ -18,22 +18,17 @@ fn main() -> anyhow::Result<()> {
             wiard::Event::MenuCommand(ev) => {
                 if ev.handle == menu && ev.index == 0 {
                     println!("clicked menu item");
-                }
-                else if ev.handle == menu && ev.index == 1 {
+                } else if ev.handle == menu && ev.index == 1 {
                     window.close();
                 }
             }
             wiard::Event::NotifyIcon(ev) => {
                 println!("{ev:?}");
                 match ev.event {
-                    wiard::NotifyIconEvent::MouseInput(m) => {
-                        if m.button == wiard::MouseButton::Right
-                            && m.button_state == wiard::ButtonState::Released
-                        {
-                            window.set_foreground();
-                            window.set_focus();
-                            menu.track(&window, m.position)?;
-                        }
+                    wiard::NotifyIconEvent::ContextMenu(position) => {
+                        window.set_foreground();
+                        window.set_focus();
+                        menu.track(&window, position)?;
                     }
                     _ => {}
                 }
