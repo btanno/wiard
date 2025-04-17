@@ -57,6 +57,7 @@ pub mod notify_icon;
 mod ui_thread;
 mod utility;
 mod window;
+pub mod menu;
 
 use context::*;
 pub use device::*;
@@ -73,5 +74,6 @@ pub use notify_icon::*;
 pub use ui_thread::UiThread;
 use utility::*;
 pub use window::*;
+pub use menu::*;
 
 pub use utility::is_dark_mode;

@@ -7,12 +7,38 @@ fn main() -> anyhow::Result<()> {
         .icon(&wiard::Icon::from_path("examples/icon.ico"))
         .tip("wiard")
         .build()?;
+    let menu = wiard::Menu::new()?;
+    menu.push(wiard::MenuItem::builder().text("item"))?;
+    menu.push(wiard::MenuItem::builder().text("quit"))?;
     loop {
         let Some((event, _)) = event_rx.recv() else {
             break;
         };
-        if let wiard::Event::NotifyIcon(ev) = event {
-            println!("{ev:?}");
+        match event {
+            wiard::Event::MenuCommand(ev) => {
+                if ev.handle == menu && ev.index == 0 {
+                    println!("clicked menu item");
+                }
+                else if ev.handle == menu && ev.index == 1 {
+                    window.close();
+                }
+            }
+            wiard::Event::NotifyIcon(ev) => {
+                println!("{ev:?}");
+                match ev.event {
+                    wiard::NotifyIconEvent::MouseInput(m) => {
+                        if m.button == wiard::MouseButton::Right
+                            && m.button_state == wiard::ButtonState::Released
+                        {
+                            window.set_foreground();
+                            window.set_focus();
+                            menu.track(&window, m.position)?;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            _ => {}
         }
     }
     Ok(())

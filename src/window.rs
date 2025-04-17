@@ -10,6 +10,7 @@ use windows::Win32::{
     UI::HiDpi::GetDpiForWindow,
     UI::Shell::DragAcceptFiles,
     UI::WindowsAndMessaging::*,
+    UI::Input::KeyboardAndMouse::SetFocus,
 };
 use windows::core::{BOOL, HSTRING, PCWSTR};
 
@@ -280,6 +281,7 @@ pub struct WindowBuilder<'a, Rx, Title = &'static str, Sz = LogicalSize<u32>, St
     icon: Option<Icon>,
     cursor: Cursor,
     parent: Option<WindowHandle>,
+    menu: Option<HeaderMenu>,
 }
 
 impl<'a, Rx> WindowBuilder<'a, Rx> {
@@ -302,6 +304,7 @@ impl<'a, Rx> WindowBuilder<'a, Rx> {
             icon: None,
             cursor: Cursor::default(),
             parent: None,
+            menu: None,
         }
     }
 }
@@ -327,6 +330,7 @@ impl<'a, Rx, Title, Sz, Sty> WindowBuilder<'a, Rx, Title, Sz, Sty> {
             icon: self.icon,
             cursor: self.cursor,
             parent: self.parent,
+            menu: self.menu,
         }
     }
 
@@ -356,6 +360,7 @@ impl<'a, Rx, Title, Sz, Sty> WindowBuilder<'a, Rx, Title, Sz, Sty> {
             icon: self.icon,
             cursor: self.cursor,
             parent: self.parent,
+            menu: self.menu,
         }
     }
 
@@ -379,6 +384,7 @@ impl<'a, Rx, Title, Sz, Sty> WindowBuilder<'a, Rx, Title, Sz, Sty> {
             icon: self.icon,
             cursor: self.cursor,
             parent: self.parent,
+            menu: self.menu,
         }
     }
 
@@ -435,6 +441,12 @@ impl<'a, Rx, Title, Sz, Sty> WindowBuilder<'a, Rx, Title, Sz, Sty> {
         self.nc_hittest = flag;
         self
     }
+
+    #[inline]
+    pub fn menu(mut self, menu: &HeaderMenu) -> Self {
+        self.menu = Some(menu.clone());
+        self
+    }
 }
 
 struct BuilderProps<Pos, Sz> {
@@ -454,6 +466,7 @@ struct BuilderProps<Pos, Sz> {
     event_rx_id: u64,
     parent: Option<WindowHandle>,
     parent_inner: Option<WindowHandle>,
+    menu: Option<HeaderMenu>,
     set_attr: bool,
 }
 
@@ -482,6 +495,7 @@ impl<Sz> BuilderProps<PhysicalPosition<i32>, Sz> {
             event_rx_id: builder.event_rx.id(),
             parent: builder.parent,
             parent_inner: None,
+            menu: builder.menu,
             set_attr: true,
         }
     }
@@ -510,6 +524,7 @@ impl<Pos, Sz> BuilderProps<Pos, Sz> {
             event_rx_id: builder.event_rx.id(),
             parent: None,
             parent_inner: Some(builder.parent_inner),
+            menu: None,
             set_attr: false,
         }
     }
@@ -525,6 +540,7 @@ pub(crate) struct WindowProps {
     pub redrawing: bool,
     pub resizing: bool,
     pub minimized: bool,
+    pub _menu: Option<HeaderMenu>,
 }
 
 fn create_window<Pos, Sz>(
@@ -539,7 +555,13 @@ where
         let dpi = get_dpi_from_point(ScreenPosition::new(0, 0));
         let position = props.position.to_physical(dpi as i32);
         let size = props.inner_size.to_physical(dpi);
-        let rc = adjust_window_rect_ex_for_dpi(size, props.style, false, props.ex_style, dpi);
+        let rc = adjust_window_rect_ex_for_dpi(
+            size,
+            props.style,
+            props.menu.is_some(),
+            props.ex_style,
+            dpi,
+        );
         let hinstance: Option<HINSTANCE> = Some(GetModuleHandleW(None).unwrap().into());
         let parent = props.parent_inner.as_ref().map(|p| p.as_hwnd());
         let hwnd = CreateWindowExW(
@@ -552,7 +574,7 @@ where
             rc.right - rc.left,
             rc.bottom - rc.top,
             parent,
-            None,
+            props.menu.as_ref().map(|m| m.as_hmenu()),
             hinstance,
             None,
         )?;
@@ -611,6 +633,7 @@ where
             redrawing: false,
             resizing: false,
             minimized: false,
+            _menu: props.menu,
         };
         Context::register_window(f(handle), window_props, props.event_rx_id);
         if props.visiblity {
@@ -868,6 +891,20 @@ mod methods {
             .ok();
         }
     }
+    
+    #[inline]
+    pub fn set_foreground(handle: WindowHandle) {
+        unsafe {
+            let _ = SetForegroundWindow(handle.as_hwnd());
+        }
+    }
+    
+    #[inline]
+    pub fn set_focus(handle: WindowHandle) {
+        unsafe {
+            let _ = SetFocus(Some(handle.as_hwnd()));
+        }
+    }
 }
 
 /// Represents a window.
@@ -977,6 +1014,16 @@ impl Window {
     #[inline]
     pub fn post_app_event(&self, app: event::App) {
         methods::post_app_event(self.window_handle(), app);
+    }
+    
+    #[inline]
+    pub fn set_foreground(&self) {
+        methods::set_foreground(self.window_handle());
+    }
+
+    #[inline]
+    pub fn set_focus(&self) {
+        methods::set_focus(self.window_handle());
     }
 
     #[inline]
@@ -1090,7 +1137,7 @@ impl AsyncWindow {
     pub fn is_closed(&self) -> bool {
         Context::window_is_none(self.window_handle())
     }
-
+    
     #[inline]
     pub fn close(&self) {
         methods::close(self.window_handle());
@@ -1099,6 +1146,16 @@ impl AsyncWindow {
     #[inline]
     pub fn post_app_event(&self, app: event::App) {
         methods::post_app_event(self.window_handle(), app);
+    }
+
+    #[inline]
+    pub fn set_foreground(&self) {
+        methods::set_foreground(self.window_handle());
+    }
+
+    #[inline]
+    pub fn set_focus(&self) {
+        methods::set_focus(self.window_handle());
     }
 
     #[inline]
