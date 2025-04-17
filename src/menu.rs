@@ -31,6 +31,12 @@ pub struct MenuItemBuilder {
     item: MenuItem,
 }
 
+impl Default for MenuItemBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MenuItemBuilder {
     #[inline]
     pub fn new() -> Self {
@@ -38,13 +44,13 @@ impl MenuItemBuilder {
             item: MenuItem::default(),
         }
     }
-    
+
     #[inline]
     pub fn text(mut self, text: impl Into<String>) -> Self {
         self.item.text = text.into();
         self
     }
-    
+
     #[inline]
     pub fn sub_menu(mut self, menu: &Menu) -> Self {
         self.item.sub_menu = Some(menu.clone());
@@ -59,7 +65,7 @@ impl From<MenuItemBuilder> for MenuItem {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct MenuItem {
     pub text: String,
     pub sub_menu: Option<Menu>,
@@ -72,20 +78,15 @@ impl MenuItem {
     }
 }
 
-impl Default for MenuItem {
-    fn default() -> Self {
-        Self {
-            text: String::new(),
-            sub_menu: None,
-        }
-    }
-}
-
 pub trait IsMenu {
     fn len(&self) -> usize;
     fn push(&self, item: impl Into<MenuItem>) -> Result<()>;
     fn insert(&self, index: usize, item: impl Into<MenuItem>) -> Result<()>;
     fn remove(&self, index: usize) -> Result<()>;
+
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -194,6 +195,11 @@ impl HeaderMenu {
     }
 
     #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.object.len() == 0
+    }
+
+    #[inline]
     pub fn len(&self) -> usize {
         self.object.len()
     }
@@ -267,6 +273,11 @@ impl Menu {
                 object: Arc::new(Object::new(CreatePopupMenu()?)?),
             })
         }
+    }
+
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.object.len() == 0
     }
 
     #[inline]

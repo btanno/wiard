@@ -8,9 +8,9 @@ use windows::Win32::{
     Graphics::Gdi::{GetStockObject, HBRUSH, ScreenToClient, WHITE_BRUSH},
     System::LibraryLoader::GetModuleHandleW,
     UI::HiDpi::GetDpiForWindow,
+    UI::Input::KeyboardAndMouse::SetFocus,
     UI::Shell::DragAcceptFiles,
     UI::WindowsAndMessaging::*,
-    UI::Input::KeyboardAndMouse::SetFocus,
 };
 use windows::core::{BOOL, HSTRING, PCWSTR};
 
@@ -891,14 +891,14 @@ mod methods {
             .ok();
         }
     }
-    
+
     #[inline]
     pub fn set_foreground(handle: WindowHandle) {
         unsafe {
             let _ = SetForegroundWindow(handle.as_hwnd());
         }
     }
-    
+
     #[inline]
     pub fn set_focus(handle: WindowHandle) {
         unsafe {
@@ -1015,7 +1015,7 @@ impl Window {
     pub fn post_app_event(&self, app: event::App) {
         methods::post_app_event(self.window_handle(), app);
     }
-    
+
     #[inline]
     pub fn set_foreground(&self) {
         methods::set_foreground(self.window_handle());
@@ -1137,7 +1137,7 @@ impl AsyncWindow {
     pub fn is_closed(&self) -> bool {
         Context::window_is_none(self.window_handle())
     }
-    
+
     #[inline]
     pub fn close(&self) {
         methods::close(self.window_handle());

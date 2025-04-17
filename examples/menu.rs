@@ -16,19 +16,14 @@ fn main() -> anyhow::Result<()> {
         let Some((event, _)) = event_rx.recv() else {
             break;
         };
-        match event {
-            wiard::Event::MenuCommand(mc) => {
-                if mc.handle == file_menu {
-                    if mc.index == 0 {
-                        window.close();
-                    }
-                } else if mc.handle == menu {
-                    if mc.index == 0 {
-                        println!("clicked help/item");
-                    }
+        if let wiard::Event::MenuCommand(mc) = event {
+            if mc.handle == file_menu {
+                if mc.index == 0 {
+                    window.close();
                 }
+            } else if mc.handle == menu && mc.index == 0 {
+                println!("clicked help/item");
             }
-            _ => {}
         }
     }
     Ok(())

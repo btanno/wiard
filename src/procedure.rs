@@ -674,7 +674,7 @@ pub(crate) extern "system" fn window_proc(
                     lparam,
                 );
                 DefWindowProcW(hwnd, msg, wparam, lparam)
-            },
+            }
             WM_MBUTTONUP => on_mouse_input(
                 hwnd,
                 MouseButton::Middle,

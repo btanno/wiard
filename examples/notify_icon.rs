@@ -24,13 +24,10 @@ fn main() -> anyhow::Result<()> {
             }
             wiard::Event::NotifyIcon(ev) => {
                 println!("{ev:?}");
-                match ev.event {
-                    wiard::NotifyIconEvent::ContextMenu(position) => {
-                        window.set_foreground();
-                        window.set_focus();
-                        menu.track(&window, position)?;
-                    }
-                    _ => {}
+                if let wiard::NotifyIconEvent::ContextMenu(position) = ev.event {
+                    window.set_foreground();
+                    window.set_focus();
+                    menu.track(&window, position)?;
                 }
             }
             _ => {}

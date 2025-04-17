@@ -9,13 +9,10 @@ fn main() -> anyhow::Result<()> {
         let Some((event, _)) = event_rx.recv() else {
             break;
         };
-        match event {
-            wiard::Event::KeyInput(k) => {
-                if k.is(wiard::VirtualKey::Q, wiard::KeyState::Released) {
-                    window.close();
-                }
+        if let wiard::Event::KeyInput(k) = event {
+            if k.is(wiard::VirtualKey::Q, wiard::KeyState::Released) {
+                window.close();
             }
-            _ => {}
         }
     }
     Ok(())

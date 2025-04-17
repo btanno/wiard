@@ -14,15 +14,12 @@ fn post_app_event_test() {
             let Some((event, _)) = event_rx.recv() else {
                 break;
             };
-            match event {
-                wiard::Event::App(ev) => {
-                    assert!(ev.index == 0);
-                    assert!(ev.value0 == 1);
-                    assert!(ev.value1 == 2);
-                    tx.send(()).ok();
-                    window.close();
-                }
-                _ => {}
+            if let wiard::Event::App(ev) = event {
+                assert!(ev.index == 0);
+                assert!(ev.value0 == 1);
+                assert!(ev.value1 == 2);
+                tx.send(()).ok();
+                window.close();
             }
         }
     });
