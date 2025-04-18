@@ -131,6 +131,7 @@ impl UiThread {
     ///
     #[inline]
     pub fn send_task(f: impl FnOnce() + Send + 'static) {
+        Self::init();
         THREAD.get().unwrap().lock().unwrap().send_task(f);
     }
 

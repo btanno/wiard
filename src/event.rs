@@ -246,6 +246,38 @@ impl Drop for NcHitTest {
     }
 }
 
+#[derive(Debug)]
+pub struct NotifyIcon {
+    pub id: super::NotifyIcon,
+    pub event: NotifyIconEvent,
+}
+
+impl PartialEq<super::NotifyIcon> for NotifyIcon {
+    #[inline]
+    fn eq(&self, other: &super::NotifyIcon) -> bool {
+        &self.id == other
+    }
+}
+
+impl PartialEq<NotifyIcon> for super::NotifyIcon {
+    #[inline]
+    fn eq(&self, other: &NotifyIcon) -> bool {
+        self == &other.id
+    }
+}
+
+#[derive(Debug)]
+pub struct MenuCommand {
+    pub index: usize,
+    pub handle: MenuHandle,
+}
+
+#[derive(Debug)]
+pub struct ContextMenu {
+    pub clicked_window: WindowHandle,
+    pub position: ScreenPosition<i32>,
+}
+
 /// An event of request to close the window.
 ///
 /// This event is called when the window is set `false` to [`auto_close()`].
@@ -290,26 +322,6 @@ impl App {
     }
 }
 
-#[derive(Debug)]
-pub struct NotifyIcon {
-    pub id: super::NotifyIcon,
-    pub event: NotifyIconEvent,
-}
-
-impl PartialEq<super::NotifyIcon> for NotifyIcon {
-    #[inline]
-    fn eq(&self, other: &super::NotifyIcon) -> bool {
-        &self.id == other
-    }
-}
-
-impl PartialEq<NotifyIcon> for super::NotifyIcon {
-    #[inline]
-    fn eq(&self, other: &NotifyIcon) -> bool {
-        self == &other.id
-    }
-}
-
 /// Other window messages
 #[derive(Debug)]
 pub struct Other {
@@ -342,15 +354,17 @@ pub enum Event {
     ImeBeginCandidateList,
     ImeUpdateCandidateList(ImeUpdateCandidateList),
     ImeEndCandidateList,
+    MenuCommand(MenuCommand),
+    ContextMenu(ContextMenu),
     Minizmized,
     Maximized(Maximized),
     Restored(Restored),
     DpiChanged(DpiChanged),
     DropFiles(DropFiles),
     NcHitTest(NcHitTest),
+    NotifyIcon(NotifyIcon),
     CloseRequest(CloseRequest),
     Closed,
     App(App),
-    NotifyIcon(NotifyIcon),
     Other(Other),
 }

@@ -49,11 +49,12 @@ mod dialog;
 mod error;
 pub mod event;
 pub mod ime;
+pub mod menu;
 mod messages;
+pub mod notify_icon;
 mod procedure;
 mod resource;
 pub mod style;
-pub mod notify_icon;
 mod ui_thread;
 mod utility;
 mod window;
@@ -65,11 +66,14 @@ pub use dialog::{FileDialogOptions, FileOpenDialog};
 pub use error::*;
 #[doc(inline)]
 pub use event::{Event, NcHitTestValue, ResizingEdge};
+#[doc(inline)]
+pub use menu::{Menu, MenuBar, MenuBarItem, MenuHandle, MenuItem};
 use messages::*;
+#[doc(inline)]
+pub use notify_icon::*;
 pub use resource::*;
 #[doc(inline)]
 pub use style::*;
-pub use notify_icon::*;
 pub use ui_thread::UiThread;
 use utility::*;
 pub use window::*;

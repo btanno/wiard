@@ -2,7 +2,7 @@ fn main() -> anyhow::Result<()> {
     let mut event_rx = wiard::EventReceiver::new();
     let mut windows = vec![];
     let root = wiard::Window::builder(&event_rx)
-        .title(format!("wiard windows[0]"))
+        .title("wiard windows[0]".to_string())
         .inner_size(wiard::LogicalSize::new(320, 240))
         .build()?;
     windows.push(root);
@@ -18,13 +18,10 @@ fn main() -> anyhow::Result<()> {
         let Some((event, window)) = event_rx.recv() else {
             break;
         };
-        match event {
-            wiard::Event::Closed => {
-                if let Some(i) = windows.iter().position(|w| w == &window) {
-                    println!("closed windows[{i}]");
-                }
+        if let wiard::Event::Closed = event {
+            if let Some(i) = windows.iter().position(|w| w == &window) {
+                println!("closed windows[{i}]");
             }
-            _ => {}
         }
     }
     Ok(())

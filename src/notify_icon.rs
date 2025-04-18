@@ -20,7 +20,7 @@ pub struct Builder<'a> {
     tip: Option<String>,
 }
 
-impl<'a> Builder<'a> {
+impl Builder<'_> {
     fn new(window: &impl IsWindow) -> Self {
         Self {
             window: window.window_handle(),
@@ -30,7 +30,7 @@ impl<'a> Builder<'a> {
     }
 
     #[inline]
-    pub fn icon<'b>(self, icon: &'b Icon) -> Builder<'b> {
+    pub fn icon(self, icon: &Icon) -> Builder {
         Builder {
             window: self.window,
             icon: Some(icon),
@@ -88,6 +88,7 @@ pub struct NotifyIcon {
 
 impl NotifyIcon {
     #[inline]
+    #[allow(clippy::new_ret_no_self)]
     pub fn new(window: &impl IsWindow) -> Builder {
         Builder::new(window)
     }

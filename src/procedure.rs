@@ -407,7 +407,7 @@ unsafe fn on_get_dpi_scaled_size(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> 
         let rc = adjust_window_rect_ex_for_dpi(
             size,
             WINDOW_STYLE(GetWindowLongPtrW(hwnd, GWL_STYLE) as u32),
-            false,
+            !GetMenu(hwnd).is_invalid(),
             WINDOW_EX_STYLE(GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as u32),
             next_dpi as u32,
         );
@@ -577,6 +577,39 @@ unsafe fn on_notify_icon(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> LRESULT 
     LRESULT(0)
 }
 
+unsafe fn on_menu_command(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+    unsafe {
+        let handle = WindowHandle::new(hwnd);
+        let index = wparam.0;
+        let menu = MenuHandle::from_raw(HMENU(lparam.0 as *mut std::ffi::c_void));
+        Context::send_event(
+            handle,
+            Event::MenuCommand(event::MenuCommand {
+                index,
+                handle: menu,
+            }),
+        );
+        DefWindowProcW(hwnd, WM_MENUCOMMAND, wparam, lparam)
+    }
+}
+
+unsafe fn on_context_menu(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+    unsafe {
+        let handle = WindowHandle::new(hwnd);
+        Context::send_event(
+            handle,
+            Event::ContextMenu(event::ContextMenu {
+                clicked_window: WindowHandle::new(HWND(wparam.0 as *mut std::ffi::c_void)),
+                position: ScreenPosition::new(
+                    get_x_lparam(lparam) as i32,
+                    get_y_lparam(lparam) as i32,
+                ),
+            }),
+        );
+        DefWindowProcW(hwnd, WM_CONTEXTMENU, wparam, lparam)
+    }
+}
+
 fn wparam_to_button(wparam: WPARAM) -> MouseButton {
     match get_xbutton_wparam(wparam) {
         0x0001 => MouseButton::Ex(0),
@@ -632,13 +665,16 @@ pub(crate) extern "system" fn window_proc(
                 wparam,
                 lparam,
             ),
-            WM_RBUTTONUP => on_mouse_input(
-                hwnd,
-                MouseButton::Right,
-                ButtonState::Released,
-                wparam,
-                lparam,
-            ),
+            WM_RBUTTONUP => {
+                on_mouse_input(
+                    hwnd,
+                    MouseButton::Right,
+                    ButtonState::Released,
+                    wparam,
+                    lparam,
+                );
+                DefWindowProcW(hwnd, msg, wparam, lparam)
+            }
             WM_MBUTTONUP => on_mouse_input(
                 hwnd,
                 MouseButton::Middle,
@@ -675,6 +711,8 @@ pub(crate) extern "system" fn window_proc(
             WM_DROPFILES => on_drop_files(hwnd, wparam, lparam),
             WM_NCCREATE => on_nc_create(hwnd, wparam, lparam),
             WM_NCHITTEST => on_nc_hittest(hwnd, wparam, lparam),
+            WM_MENUCOMMAND => on_menu_command(hwnd, wparam, lparam),
+            WM_CONTEXTMENU => on_context_menu(hwnd, wparam, lparam),
             WM_CLOSE => on_close(hwnd, wparam, lparam),
             WM_DESTROY => on_destroy(hwnd),
             _ => {

@@ -7,19 +7,16 @@ fn main() -> anyhow::Result<()> {
         let Some((event, _)) = event_rx.recv() else {
             break;
         };
-        match event {
-            wiard::Event::KeyInput(k) => {
-                if k.is(wiard::VirtualKey::A, wiard::KeyState::Pressed) {
-                    window.set_cursor(wiard::Cursor::Arrow);
-                } else if k.is(wiard::VirtualKey::S, wiard::KeyState::Pressed) {
-                    window.set_cursor(wiard::Cursor::Hand);
-                } else if k.is(wiard::VirtualKey::D, wiard::KeyState::Pressed) {
-                    window.set_cursor(wiard::Cursor::IBeam);
-                } else if k.is(wiard::VirtualKey::F, wiard::KeyState::Pressed) {
-                    window.set_cursor(wiard::Cursor::Wait);
-                }
+        if let wiard::Event::KeyInput(k) = event {
+            if k.is(wiard::VirtualKey::A, wiard::KeyState::Pressed) {
+                window.set_cursor(wiard::Cursor::Arrow);
+            } else if k.is(wiard::VirtualKey::S, wiard::KeyState::Pressed) {
+                window.set_cursor(wiard::Cursor::Hand);
+            } else if k.is(wiard::VirtualKey::D, wiard::KeyState::Pressed) {
+                window.set_cursor(wiard::Cursor::IBeam);
+            } else if k.is(wiard::VirtualKey::F, wiard::KeyState::Pressed) {
+                window.set_cursor(wiard::Cursor::Wait);
             }
-            _ => {}
         }
     }
     Ok(())
