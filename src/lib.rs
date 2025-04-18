@@ -67,7 +67,7 @@ pub use error::*;
 #[doc(inline)]
 pub use event::{Event, NcHitTestValue, ResizingEdge};
 #[doc(inline)]
-pub use menu::{Menu, MenuBar, MenuItem, MenuBarItem, MenuHandle};
+pub use menu::{Menu, MenuBar, MenuBarItem, MenuHandle, MenuItem};
 use messages::*;
 #[doc(inline)]
 pub use notify_icon::*;

@@ -45,19 +45,19 @@ impl MenuBarItemBuilder {
             item: MenuBarItem::default(),
         }
     }
-    
+
     #[inline]
     pub fn text(mut self, text: impl Into<String>) -> Self {
         self.item.text = text.into();
         self
     }
-    
+
     #[inline]
     pub fn sub_menu(mut self, menu: &Menu) -> Self {
         self.item.sub_menu = Some(menu.clone());
         self
     }
-    
+
     #[inline]
     pub fn right_justify(mut self, flag: bool) -> Self {
         self.item.right_justify = flag;
@@ -104,7 +104,7 @@ pub struct Text {
 }
 
 /// Builds a MenuItem.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct MenuItemBuilder {
     item: Text,
 }
@@ -363,8 +363,8 @@ impl Menu {
                 };
                 InsertMenuItemW(self.object.as_hmenu(), index as u32, true, &info)?;
                 Ok(())
-            }
-            _ => self.object.insert(index, item)
+            },
+            _ => self.object.insert(index, item),
         }
     }
 
