@@ -66,8 +66,10 @@ pub use dialog::{FileDialogOptions, FileOpenDialog};
 pub use error::*;
 #[doc(inline)]
 pub use event::{Event, NcHitTestValue, ResizingEdge};
-pub use menu::*;
+#[doc(inline)]
+pub use menu::{Menu, MenuBar, MenuItem, MenuBarItem, MenuHandle};
 use messages::*;
+#[doc(inline)]
 pub use notify_icon::*;
 pub use resource::*;
 #[doc(inline)]

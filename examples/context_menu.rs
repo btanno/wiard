@@ -5,6 +5,7 @@ fn main() -> anyhow::Result<()> {
         .build()?;
     let menu = wiard::Menu::new()?;
     menu.push(wiard::MenuItem::builder().text("menu item 0"))?;
+    menu.push(wiard::MenuItem::separator())?;
     menu.push(wiard::MenuItem::builder().text("menu item 1"))?;
     loop {
         let Some((event, _)) = event_rx.recv() else {

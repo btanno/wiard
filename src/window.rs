@@ -281,7 +281,7 @@ pub struct WindowBuilder<'a, Rx, Title = &'static str, Sz = LogicalSize<u32>, St
     icon: Option<Icon>,
     cursor: Cursor,
     parent: Option<WindowHandle>,
-    menu: Option<HeaderMenu>,
+    menu: Option<MenuBar>,
 }
 
 impl<'a, Rx> WindowBuilder<'a, Rx> {
@@ -443,7 +443,7 @@ impl<'a, Rx, Title, Sz, Sty> WindowBuilder<'a, Rx, Title, Sz, Sty> {
     }
 
     #[inline]
-    pub fn menu(mut self, menu: &HeaderMenu) -> Self {
+    pub fn menu(mut self, menu: &MenuBar) -> Self {
         self.menu = Some(menu.clone());
         self
     }
@@ -466,7 +466,7 @@ struct BuilderProps<Pos, Sz> {
     event_rx_id: u64,
     parent: Option<WindowHandle>,
     parent_inner: Option<WindowHandle>,
-    menu: Option<HeaderMenu>,
+    menu: Option<MenuBar>,
     set_attr: bool,
 }
 
@@ -540,7 +540,7 @@ pub(crate) struct WindowProps {
     pub redrawing: bool,
     pub resizing: bool,
     pub minimized: bool,
-    pub _menu: Option<HeaderMenu>,
+    pub _menu: Option<MenuBar>,
 }
 
 fn create_window<Pos, Sz>(

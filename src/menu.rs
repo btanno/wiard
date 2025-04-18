@@ -27,21 +27,93 @@ impl Drop for RawHandle {
 unsafe impl Send for RawHandle {}
 unsafe impl Sync for RawHandle {}
 
-pub struct MenuItemBuilder {
-    item: MenuItem,
+trait Item {
+    fn text(&self) -> &str;
+    fn sub_menu(&self) -> Option<Menu>;
 }
 
-impl Default for MenuItemBuilder {
-    fn default() -> Self {
-        Self::new()
+/// Builds a MenuBarItem.
+#[derive(Debug, Default)]
+pub struct MenuBarItemBuilder {
+    item: MenuBarItem,
+}
+
+impl MenuBarItemBuilder {
+    #[inline]
+    pub fn new() -> Self {
+        Self {
+            item: MenuBarItem::default(),
+        }
     }
+    
+    #[inline]
+    pub fn text(mut self, text: impl Into<String>) -> Self {
+        self.item.text = text.into();
+        self
+    }
+    
+    #[inline]
+    pub fn sub_menu(mut self, menu: &Menu) -> Self {
+        self.item.sub_menu = Some(menu.clone());
+        self
+    }
+    
+    #[inline]
+    pub fn right_justify(mut self, flag: bool) -> Self {
+        self.item.right_justify = flag;
+        self
+    }
+}
+
+impl From<MenuBarItemBuilder> for MenuBarItem {
+    #[inline]
+    fn from(value: MenuBarItemBuilder) -> Self {
+        value.item
+    }
+}
+
+/// Represents a item for MenuBar.
+#[derive(Debug, Default)]
+pub struct MenuBarItem {
+    pub text: String,
+    pub sub_menu: Option<Menu>,
+    pub right_justify: bool,
+}
+
+impl MenuBarItem {
+    #[inline]
+    pub fn builder() -> MenuBarItemBuilder {
+        MenuBarItemBuilder::new()
+    }
+}
+
+impl Item for MenuBarItem {
+    fn text(&self) -> &str {
+        &self.text
+    }
+
+    fn sub_menu(&self) -> Option<Menu> {
+        self.sub_menu.clone()
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct Text {
+    pub text: String,
+    pub sub_menu: Option<Menu>,
+}
+
+/// Builds a MenuItem.
+#[derive(Debug)]
+pub struct MenuItemBuilder {
+    item: Text,
 }
 
 impl MenuItemBuilder {
     #[inline]
     pub fn new() -> Self {
         Self {
-            item: MenuItem::default(),
+            item: Text::default(),
         }
     }
 
@@ -61,14 +133,15 @@ impl MenuItemBuilder {
 impl From<MenuItemBuilder> for MenuItem {
     #[inline]
     fn from(value: MenuItemBuilder) -> Self {
-        value.item
+        MenuItem::Text(value.item)
     }
 }
 
-#[derive(Debug, Default)]
-pub struct MenuItem {
-    pub text: String,
-    pub sub_menu: Option<Menu>,
+/// Represents a item for a Menu.
+#[derive(Debug)]
+pub enum MenuItem {
+    Text(Text),
+    Separator,
 }
 
 impl MenuItem {
@@ -76,19 +149,31 @@ impl MenuItem {
     pub fn builder() -> MenuItemBuilder {
         MenuItemBuilder::new()
     }
-}
 
-pub trait IsMenu {
-    fn len(&self) -> usize;
-    fn push(&self, item: impl Into<MenuItem>) -> Result<()>;
-    fn insert(&self, index: usize, item: impl Into<MenuItem>) -> Result<()>;
-    fn remove(&self, index: usize) -> Result<()>;
-
-    fn is_empty(&self) -> bool {
-        self.len() == 0
+    #[inline]
+    pub fn separator() -> Self {
+        Self::Separator
     }
 }
 
+impl Item for MenuItem {
+    fn text(&self) -> &str {
+        let Self::Text(item) = self else {
+            unreachable!()
+        };
+        &item.text
+    }
+
+    fn sub_menu(&self) -> Option<Menu> {
+        let Self::Text(item) = self else {
+            unreachable!()
+        };
+        item.sub_menu.clone()
+    }
+}
+
+/// Represents a menu handle.
+/// MenuHandle can compare with a MenuBar and a Menu.
 #[derive(Clone, Copy, Debug)]
 pub struct MenuHandle {
     handle: HMENU,
@@ -135,15 +220,10 @@ impl Object {
         unsafe { GetMenuItemCount(Some(self.handle.raw)) as usize }
     }
 
-    fn push(&self, item: impl Into<MenuItem>) -> Result<()> {
-        self.insert(self.len(), item.into())
-    }
-
-    fn insert(&self, index: usize, item: impl Into<MenuItem>) -> Result<()> {
-        let item = item.into();
+    fn insert(&self, index: usize, item: impl Item) -> Result<()> {
         unsafe {
             let mut text = item
-                .text
+                .text()
                 .encode_utf16()
                 .chain(std::iter::once(0))
                 .collect::<Vec<_>>();
@@ -151,13 +231,13 @@ impl Object {
                 cbSize: std::mem::size_of::<MENUITEMINFOW>() as u32,
                 fMask: MIIM_STRING
                     | item
-                        .sub_menu
+                        .sub_menu()
                         .as_ref()
                         .map_or(MENU_ITEM_MASK(0), |_| MIIM_SUBMENU),
                 dwTypeData: PWSTR::from_raw(text.as_mut_ptr()),
                 cch: text.len() as u32,
                 hSubMenu: item
-                    .sub_menu
+                    .sub_menu()
                     .as_ref()
                     .map_or(HMENU::default(), |sm| sm.object.as_hmenu()),
                 ..Default::default()
@@ -179,12 +259,13 @@ impl Object {
     }
 }
 
+/// Represents a horizontal menu.
 #[derive(Clone, Debug)]
-pub struct HeaderMenu {
+pub struct MenuBar {
     object: Arc<Object>,
 }
 
-impl HeaderMenu {
+impl MenuBar {
     #[inline]
     pub fn new() -> Result<Self> {
         unsafe {
@@ -205,13 +286,13 @@ impl HeaderMenu {
     }
 
     #[inline]
-    pub fn push(&self, item: impl Into<MenuItem>) -> Result<()> {
-        self.object.push(item)
+    pub fn push(&self, item: impl Into<MenuBarItem>) -> Result<()> {
+        self.insert(self.len(), item)
     }
 
     #[inline]
-    pub fn insert(&self, index: usize, item: impl Into<MenuItem>) -> Result<()> {
-        self.object.insert(index, item)
+    pub fn insert(&self, index: usize, item: impl Into<MenuBarItem>) -> Result<()> {
+        self.object.insert(index, item.into())
     }
 
     #[inline]
@@ -224,42 +305,21 @@ impl HeaderMenu {
     }
 }
 
-impl IsMenu for HeaderMenu {
-    #[inline]
-    fn len(&self) -> usize {
-        self.object.len()
-    }
-
-    #[inline]
-    fn push(&self, item: impl Into<MenuItem>) -> Result<()> {
-        self.object.push(item)
-    }
-
-    #[inline]
-    fn insert(&self, index: usize, item: impl Into<MenuItem>) -> Result<()> {
-        self.object.insert(index, item)
-    }
-
-    #[inline]
-    fn remove(&self, index: usize) -> Result<()> {
-        self.object.remove(index)
-    }
-}
-
-impl PartialEq<MenuHandle> for HeaderMenu {
+impl PartialEq<MenuHandle> for MenuBar {
     #[inline]
     fn eq(&self, other: &MenuHandle) -> bool {
         self.object.as_hmenu() == other.handle
     }
 }
 
-impl PartialEq<HeaderMenu> for MenuHandle {
+impl PartialEq<MenuBar> for MenuHandle {
     #[inline]
-    fn eq(&self, other: &HeaderMenu) -> bool {
+    fn eq(&self, other: &MenuBar) -> bool {
         other == self
     }
 }
 
+/// Represents a vertical menu.
 #[derive(Clone, Debug)]
 pub struct Menu {
     object: Arc<Object>,
@@ -287,12 +347,25 @@ impl Menu {
 
     #[inline]
     pub fn push(&self, item: impl Into<MenuItem>) -> Result<()> {
-        self.object.push(item)
+        self.insert(self.len(), item)
     }
 
     #[inline]
     pub fn insert(&self, index: usize, item: impl Into<MenuItem>) -> Result<()> {
-        self.object.insert(index, item)
+        let item = item.into();
+        match item {
+            MenuItem::Separator => unsafe {
+                let info = MENUITEMINFOW {
+                    cbSize: std::mem::size_of::<MENUITEMINFOW>() as u32,
+                    fMask: MIIM_FTYPE,
+                    fType: MFT_SEPARATOR,
+                    ..Default::default()
+                };
+                InsertMenuItemW(self.object.as_hmenu(), index as u32, true, &info)?;
+                Ok(())
+            }
+            _ => self.object.insert(index, item)
+        }
     }
 
     #[inline]
@@ -315,28 +388,6 @@ impl Menu {
             );
         });
         Ok(())
-    }
-}
-
-impl IsMenu for Menu {
-    #[inline]
-    fn len(&self) -> usize {
-        self.object.len()
-    }
-
-    #[inline]
-    fn push(&self, item: impl Into<MenuItem>) -> Result<()> {
-        self.object.push(item)
-    }
-
-    #[inline]
-    fn insert(&self, index: usize, item: impl Into<MenuItem>) -> Result<()> {
-        self.object.insert(index, item)
-    }
-
-    #[inline]
-    fn remove(&self, index: usize) -> Result<()> {
-        self.object.remove(index)
     }
 }
 
