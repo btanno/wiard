@@ -220,7 +220,7 @@ impl Object {
         unsafe { GetMenuItemCount(Some(self.handle.raw)) as usize }
     }
 
-    fn insert(&self, index: usize, item: impl Item) -> Result<()> {
+    fn insert(&self, index: usize, item: impl Item) -> Result<usize> {
         unsafe {
             let mut text = item
                 .text()
@@ -244,7 +244,7 @@ impl Object {
             };
             InsertMenuItemW(self.handle.raw, index as u32, true, &item)?;
         }
-        Ok(())
+        Ok(index)
     }
 
     fn remove(&self, index: usize) -> Result<()> {
@@ -286,12 +286,12 @@ impl MenuBar {
     }
 
     #[inline]
-    pub fn push(&self, item: impl Into<MenuBarItem>) -> Result<()> {
+    pub fn push(&self, item: impl Into<MenuBarItem>) -> Result<usize> {
         self.insert(self.len(), item)
     }
 
     #[inline]
-    pub fn insert(&self, index: usize, item: impl Into<MenuBarItem>) -> Result<()> {
+    pub fn insert(&self, index: usize, item: impl Into<MenuBarItem>) -> Result<usize> {
         self.object.insert(index, item.into())
     }
 
@@ -346,12 +346,12 @@ impl Menu {
     }
 
     #[inline]
-    pub fn push(&self, item: impl Into<MenuItem>) -> Result<()> {
+    pub fn push(&self, item: impl Into<MenuItem>) -> Result<usize> {
         self.insert(self.len(), item)
     }
 
     #[inline]
-    pub fn insert(&self, index: usize, item: impl Into<MenuItem>) -> Result<()> {
+    pub fn insert(&self, index: usize, item: impl Into<MenuItem>) -> Result<usize> {
         let item = item.into();
         match item {
             MenuItem::Separator => unsafe {
@@ -362,7 +362,7 @@ impl Menu {
                     ..Default::default()
                 };
                 InsertMenuItemW(self.object.as_hmenu(), index as u32, true, &info)?;
-                Ok(())
+                Ok(index)
             },
             _ => self.object.insert(index, item),
         }
