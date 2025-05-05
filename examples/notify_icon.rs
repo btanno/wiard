@@ -8,17 +8,17 @@ fn main() -> anyhow::Result<()> {
         .tip("wiard")
         .build()?;
     let menu = wiard::Menu::new()?;
-    menu.push(wiard::MenuItem::builder().text("item"))?;
-    menu.push(wiard::MenuItem::builder().text("quit"))?;
+    let menu_index_item = menu.push(wiard::MenuItem::builder().text("item"))?;
+    let menu_index_quit = menu.push(wiard::MenuItem::builder().text("quit"))?;
     loop {
         let Some((event, _)) = event_rx.recv() else {
             break;
         };
         match event {
             wiard::Event::MenuCommand(ev) => {
-                if ev.handle == menu && ev.index == 0 {
+                if ev.handle == menu && ev.index == menu_index_item {
                     println!("clicked menu item");
-                } else if ev.handle == menu && ev.index == 1 {
+                } else if ev.handle == menu && ev.index == menu_index_quit {
                     window.close();
                 }
             }
