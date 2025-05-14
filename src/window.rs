@@ -1171,22 +1171,36 @@ impl IsWindow for AsyncWindow {
     }
 }
 
+fn to_raw_window_handle(
+    this: &impl IsWindow,
+) -> std::result::Result<raw_window_handle::WindowHandle<'_>, raw_window_handle::HandleError> {
+    use raw_window_handle::{RawWindowHandle, Win32WindowHandle, WindowHandle};
+    use std::num::NonZero;
+    let this = this.window_handle();
+    unsafe {
+        let mut handle = Win32WindowHandle::new(std::mem::transmute(this.0.0.addr()));
+        handle.hinstance = NonZero::new(GetWindowLongPtrW(this.as_hwnd(), GWLP_HINSTANCE));
+        Ok(WindowHandle::borrow_raw(RawWindowHandle::Win32(handle)))
+    }
+}
+
+fn to_raw_display_handle(
+    _this: &impl IsWindow,
+) -> std::result::Result<raw_window_handle::DisplayHandle<'_>, raw_window_handle::HandleError> {
+    Ok(unsafe {
+        raw_window_handle::DisplayHandle::borrow_raw(raw_window_handle::RawDisplayHandle::Windows(
+            raw_window_handle::WindowsDisplayHandle::new(),
+        ))
+    })
+}
+
 impl raw_window_handle::HasWindowHandle for Window {
     #[inline]
     fn window_handle(
         &self,
     ) -> std::result::Result<raw_window_handle::WindowHandle<'_>, raw_window_handle::HandleError>
     {
-        Ok(unsafe {
-            raw_window_handle::WindowHandle::borrow_raw(raw_window_handle::RawWindowHandle::Win32(
-                raw_window_handle::Win32WindowHandle::new(std::mem::transmute::<
-                    usize,
-                    std::num::NonZero<isize>,
-                >(
-                    IsWindow::window_handle(self).0.0.addr(),
-                )),
-            ))
-        })
+        to_raw_window_handle(self)
     }
 }
 
@@ -1196,16 +1210,7 @@ impl raw_window_handle::HasWindowHandle for AsyncWindow {
         &self,
     ) -> std::result::Result<raw_window_handle::WindowHandle<'_>, raw_window_handle::HandleError>
     {
-        Ok(unsafe {
-            raw_window_handle::WindowHandle::borrow_raw(raw_window_handle::RawWindowHandle::Win32(
-                raw_window_handle::Win32WindowHandle::new(std::mem::transmute::<
-                    usize,
-                    std::num::NonZero<isize>,
-                >(
-                    IsWindow::window_handle(self).0.0.addr(),
-                )),
-            ))
-        })
+        to_raw_window_handle(self)
     }
 }
 
@@ -1215,13 +1220,7 @@ impl raw_window_handle::HasDisplayHandle for Window {
         &self,
     ) -> std::result::Result<raw_window_handle::DisplayHandle<'_>, raw_window_handle::HandleError>
     {
-        Ok(unsafe {
-            raw_window_handle::DisplayHandle::borrow_raw(
-                raw_window_handle::RawDisplayHandle::Windows(
-                    raw_window_handle::WindowsDisplayHandle::new(),
-                ),
-            )
-        })
+        to_raw_display_handle(self)
     }
 }
 
@@ -1231,13 +1230,7 @@ impl raw_window_handle::HasDisplayHandle for AsyncWindow {
         &self,
     ) -> std::result::Result<raw_window_handle::DisplayHandle<'_>, raw_window_handle::HandleError>
     {
-        Ok(unsafe {
-            raw_window_handle::DisplayHandle::borrow_raw(
-                raw_window_handle::RawDisplayHandle::Windows(
-                    raw_window_handle::WindowsDisplayHandle::new(),
-                ),
-            )
-        })
+        to_raw_display_handle(self)
     }
 }
 
@@ -1583,20 +1576,25 @@ impl AsyncInnerWindow {
     }
 }
 
+impl IsWindow for InnerWindow {
+    fn window_handle(&self) -> WindowHandle {
+        self.handle
+    }
+}
+
+impl IsWindow for AsyncInnerWindow {
+    fn window_handle(&self) -> WindowHandle {
+        self.handle
+    }
+}
+
 impl raw_window_handle::HasWindowHandle for InnerWindow {
     #[inline]
     fn window_handle(
         &self,
     ) -> std::result::Result<raw_window_handle::WindowHandle<'_>, raw_window_handle::HandleError>
     {
-        Ok(unsafe {
-            raw_window_handle::WindowHandle::borrow_raw(raw_window_handle::RawWindowHandle::Win32(
-                raw_window_handle::Win32WindowHandle::new(std::mem::transmute::<
-                    usize,
-                    std::num::NonZero<isize>,
-                >(self.handle.0.0.addr())),
-            ))
-        })
+        to_raw_window_handle(self)
     }
 }
 
@@ -1606,14 +1604,7 @@ impl raw_window_handle::HasWindowHandle for AsyncInnerWindow {
         &self,
     ) -> std::result::Result<raw_window_handle::WindowHandle<'_>, raw_window_handle::HandleError>
     {
-        Ok(unsafe {
-            raw_window_handle::WindowHandle::borrow_raw(raw_window_handle::RawWindowHandle::Win32(
-                raw_window_handle::Win32WindowHandle::new(std::mem::transmute::<
-                    usize,
-                    std::num::NonZero<isize>,
-                >(self.handle.0.0.addr())),
-            ))
-        })
+        to_raw_window_handle(self)
     }
 }
 
@@ -1623,13 +1614,7 @@ impl raw_window_handle::HasDisplayHandle for InnerWindow {
         &self,
     ) -> std::result::Result<raw_window_handle::DisplayHandle<'_>, raw_window_handle::HandleError>
     {
-        Ok(unsafe {
-            raw_window_handle::DisplayHandle::borrow_raw(
-                raw_window_handle::RawDisplayHandle::Windows(
-                    raw_window_handle::WindowsDisplayHandle::new(),
-                ),
-            )
-        })
+        to_raw_display_handle(self)
     }
 }
 
@@ -1639,13 +1624,7 @@ impl raw_window_handle::HasDisplayHandle for AsyncInnerWindow {
         &self,
     ) -> std::result::Result<raw_window_handle::DisplayHandle<'_>, raw_window_handle::HandleError>
     {
-        Ok(unsafe {
-            raw_window_handle::DisplayHandle::borrow_raw(
-                raw_window_handle::RawDisplayHandle::Windows(
-                    raw_window_handle::WindowsDisplayHandle::new(),
-                ),
-            )
-        })
+        to_raw_display_handle(self)
     }
 }
 
