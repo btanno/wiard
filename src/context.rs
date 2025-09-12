@@ -75,11 +75,10 @@ impl Context {
                 children: vec![],
             },
         );
-        if let Some(parent) = parent {
-            if let Some(parent_obj) = window_map.get_mut(&parent) {
+        if let Some(parent) = parent
+            && let Some(parent_obj) = window_map.get_mut(&parent) {
                 parent_obj.children.push(window_handle);
             }
-        }
     }
 
     pub fn remove_window(handle: WindowHandle) -> Option<Object> {

@@ -915,7 +915,7 @@ pub struct Window {
 
 impl Window {
     #[inline]
-    pub fn builder<T>(event_rx: &T) -> WindowBuilder<T> {
+    pub fn builder<T>(event_rx: &T) -> WindowBuilder<'_, T> {
         WindowBuilder::new(event_rx)
     }
 
@@ -1047,7 +1047,7 @@ pub struct AsyncWindow {
 
 impl AsyncWindow {
     #[inline]
-    pub fn builder(event_rx: &AsyncEventReceiver) -> WindowBuilder<AsyncEventReceiver> {
+    pub fn builder(event_rx: &AsyncEventReceiver) -> WindowBuilder<'_, AsyncEventReceiver> {
         WindowBuilder::new(event_rx)
     }
 
@@ -1178,7 +1178,9 @@ fn to_raw_window_handle(
     use std::num::NonZero;
     let this = this.window_handle();
     unsafe {
-        let mut handle = Win32WindowHandle::new(std::mem::transmute(this.0.0.addr()));
+        let mut handle = Win32WindowHandle::new(
+            std::mem::transmute::<usize, std::num::NonZeroIsize>(this.0.0.addr()),
+        );
         handle.hinstance = NonZero::new(GetWindowLongPtrW(this.as_hwnd(), GWLP_HINSTANCE));
         Ok(WindowHandle::borrow_raw(RawWindowHandle::Win32(handle)))
     }
