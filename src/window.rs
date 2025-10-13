@@ -468,6 +468,7 @@ struct BuilderProps<Pos, Sz> {
     parent_inner: Option<WindowHandle>,
     menu: Option<MenuBar>,
     set_attr: bool,
+    color_mode: ColorMode,
 }
 
 impl<Sz> BuilderProps<PhysicalPosition<i32>, Sz> {
@@ -497,6 +498,7 @@ impl<Sz> BuilderProps<PhysicalPosition<i32>, Sz> {
             parent_inner: None,
             menu: builder.menu,
             set_attr: true,
+            color_mode: ColorMode::System,
         }
     }
 }
@@ -526,6 +528,7 @@ impl<Pos, Sz> BuilderProps<Pos, Sz> {
             parent_inner: Some(builder.parent_inner),
             menu: None,
             set_attr: false,
+            color_mode: ColorMode::System,
         }
     }
 }
@@ -541,6 +544,9 @@ pub(crate) struct WindowProps {
     pub resizing: bool,
     pub minimized: bool,
     pub _menu: Option<MenuBar>,
+    pub theme_menu: Theme,
+    pub color_mode: ColorMode,
+    pub color_mode_state: ColorModeState,
 }
 
 fn create_window<Pos, Sz>(
@@ -579,7 +585,7 @@ where
             None,
         )?;
         let handle = WindowHandle::new(hwnd);
-        let dark_mode = BOOL::from(is_dark_mode());
+        let dark_mode = BOOL::from(is_system_dark_mode());
         if dark_mode.as_bool() {
             info!("Dark mode");
         } else {
@@ -593,7 +599,7 @@ where
                 std::mem::size_of::<BOOL>() as u32,
             );
             if let Err(e) = ret {
-                error!("DwmSetWindowAttribute: {e}");
+                error!("DwmSetWindowAttribute DWMWA_USE_IMMERSIVE_DARK_MODE: {e}");
             }
         }
         let imm_context = ime::ImmContext::new(handle);
@@ -623,6 +629,8 @@ where
             }
         }
         DragAcceptFiles(hwnd, props.accept_drop_files);
+        set_preferred_app_mode(APPMODE_ALLOWDARK);
+        refresh_immersive_color_policy_state();
         let window_props = WindowProps {
             imm_context,
             visible_ime_candidate_window: props.visible_ime_candidate_window,
@@ -634,6 +642,13 @@ where
             resizing: false,
             minimized: false,
             _menu: props.menu,
+            theme_menu: Theme::new(hwnd, &["Menu"]),
+            color_mode: props.color_mode,
+            color_mode_state: if dark_mode.as_bool() {
+                ColorModeState::Dark
+            } else {
+                ColorModeState::Light
+            },
         };
         Context::register_window(f(handle), window_props, props.event_rx_id);
         if props.visiblity {
@@ -905,6 +920,18 @@ mod methods {
             let _ = SetFocus(Some(handle.as_hwnd()));
         }
     }
+
+    #[inline]
+    pub fn color_mode(handle: WindowHandle) -> Option<ColorMode> {
+        Context::get_window_props(handle, |props| props.color_mode)
+    }
+
+    #[inline]
+    pub fn set_color_mode(handle: WindowHandle, mode: ColorMode) {
+        UiThread::send_task(move || {
+            procedure::change_color_mode(handle.as_hwnd(), mode);
+        });
+    }
 }
 
 /// Represents a window.
@@ -1024,6 +1051,16 @@ impl Window {
     #[inline]
     pub fn set_focus(&self) {
         methods::set_focus(self.window_handle());
+    }
+
+    #[inline]
+    pub fn color_mode(&self) -> Option<ColorMode> {
+        methods::color_mode(self.window_handle())
+    }
+
+    #[inline]
+    pub fn set_color_mode(&self, mode: ColorMode) {
+        methods::set_color_mode(self.window_handle(), mode);
     }
 
     #[inline]
@@ -1156,6 +1193,16 @@ impl AsyncWindow {
     #[inline]
     pub fn set_focus(&self) {
         methods::set_focus(self.window_handle());
+    }
+
+    #[inline]
+    pub fn color_mode(&self) -> Option<ColorMode> {
+        methods::color_mode(self.window_handle())
+    }
+
+    #[inline]
+    pub fn set_color_mode(&self, mode: ColorMode) {
+        methods::set_color_mode(self.window_handle(), mode);
     }
 
     #[inline]
@@ -1478,6 +1525,16 @@ impl InnerWindow {
     }
 
     #[inline]
+    pub fn color_mode(&self) -> Option<ColorMode> {
+        methods::color_mode(self.window_handle())
+    }
+
+    #[inline]
+    pub fn set_color_mode(&self, mode: ColorMode) {
+        methods::set_color_mode(self.window_handle(), mode);
+    }
+
+    #[inline]
     pub fn post_app_event(&self, app: event::App) {
         methods::post_app_event(self.handle, app);
     }
@@ -1570,6 +1627,16 @@ impl AsyncInnerWindow {
     #[inline]
     pub fn post_app_event(&self, app: event::App) {
         methods::post_app_event(self.handle, app);
+    }
+
+    #[inline]
+    pub fn color_mode(&self) -> Option<ColorMode> {
+        methods::color_mode(self.window_handle())
+    }
+
+    #[inline]
+    pub fn set_color_mode(&self, mode: ColorMode) {
+        methods::set_color_mode(self.window_handle(), mode);
     }
 
     #[inline]

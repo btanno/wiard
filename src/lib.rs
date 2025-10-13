@@ -43,6 +43,7 @@
 
 pub use gedv::*;
 
+mod color;
 mod context;
 mod device;
 mod dialog;
@@ -59,6 +60,7 @@ mod ui_thread;
 mod utility;
 mod window;
 
+pub use color::*;
 use context::*;
 pub use device::*;
 pub use dialog::*;
@@ -77,5 +79,3 @@ pub use style::*;
 pub use ui_thread::UiThread;
 use utility::*;
 pub use window::*;
-
-pub use utility::is_dark_mode;
