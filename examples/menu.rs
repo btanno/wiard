@@ -1,13 +1,18 @@
 fn main() -> anyhow::Result<()> {
     let mut event_rx = wiard::EventReceiver::new();
     let file_menu = wiard::Menu::new()?;
-    let menu_index_quit = file_menu.push(wiard::MenuItem::builder().text("quit(&Q)"))?;
+    let menu_index_quit = file_menu.push("quit(&Q)")?;
     let menu = wiard::Menu::new()?;
-    let menu_index_item = menu.push(wiard::MenuItem::builder().text("item"))?;
+    let menu_index_item = menu.push("item")?;
     let color_menu = wiard::Menu::new()?;
-    let color_menu_system = color_menu.push(wiard::MenuItem::builder().text("system"))?;
-    let color_menu_light = color_menu.push(wiard::MenuItem::builder().text("light"))?;
-    let color_menu_dark = color_menu.push(wiard::MenuItem::builder().text("dark"))?;
+    let color_menu_system = color_menu.push("system")?;
+    let color_menu_light = color_menu.push("light")?;
+    let color_menu_dark = color_menu.push("dark")?;
+    menu.push(
+        wiard::MenuItem::builder()
+            .text("Color")
+            .sub_menu(&color_menu),
+    )?;
     let header_menu = wiard::MenuBar::new()?;
     header_menu.push(
         wiard::MenuBarItem::builder()
@@ -15,11 +20,6 @@ fn main() -> anyhow::Result<()> {
             .sub_menu(&file_menu),
     )?;
     header_menu.push(wiard::MenuBarItem::builder().text("Menu").sub_menu(&menu))?;
-    header_menu.push(
-        wiard::MenuBarItem::builder()
-            .text("Color")
-            .sub_menu(&color_menu),
-    )?;
     let window = wiard::Window::builder(&event_rx)
         .title("wiard menu")
         .menu(&header_menu)

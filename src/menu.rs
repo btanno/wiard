@@ -97,6 +97,20 @@ impl Item for MenuBarItem {
     }
 }
 
+impl From<&str> for MenuBarItem {
+    #[inline]
+    fn from(value: &str) -> Self {
+        MenuBarItemBuilder::new().text(value).into()
+    }
+}
+
+impl From<String> for MenuBarItem {
+    #[inline]
+    fn from(value: String) -> Self {
+        MenuBarItemBuilder::new().text(value).into()
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct Text {
     pub text: String,
@@ -169,6 +183,20 @@ impl Item for MenuItem {
             unreachable!()
         };
         item.sub_menu.clone()
+    }
+}
+
+impl From<&str> for MenuItem {
+    #[inline]
+    fn from(value: &str) -> Self {
+        MenuItemBuilder::new().text(value).into()
+    }
+}
+
+impl From<String> for MenuItem {
+    #[inline]
+    fn from(value: String) -> Self {
+        MenuItemBuilder::new().text(value).into()
     }
 }
 
