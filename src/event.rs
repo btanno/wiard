@@ -181,6 +181,7 @@ pub struct DropFiles {
     pub position: PhysicalPosition<i32>,
 }
 
+/// Values which can return from WM_NCHITTEST
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[repr(u32)]
 pub enum NcHitTestValue {
@@ -246,6 +247,7 @@ impl Drop for NcHitTest {
     }
 }
 
+/// An event of occurred at the notify icon.
 #[derive(Debug)]
 pub struct NotifyIcon {
     pub id: super::NotifyIcon,
@@ -266,16 +268,25 @@ impl PartialEq<NotifyIcon> for super::NotifyIcon {
     }
 }
 
+/// An event of pushed the menu item.
 #[derive(Debug)]
 pub struct MenuCommand {
     pub index: usize,
     pub handle: MenuHandle,
 }
 
+/// An event that requests to show context menu.
 #[derive(Debug)]
 pub struct ContextMenu {
     pub clicked_window: WindowHandle,
     pub position: ScreenPosition<i32>,
+}
+
+/// An event of changed the color mode.
+#[derive(Debug)]
+pub struct ColorModeChanged {
+    pub current: ColorModeState,
+    pub previous: ColorModeState,
 }
 
 /// An event of request to close the window.
@@ -363,6 +374,7 @@ pub enum Event {
     DropFiles(DropFiles),
     NcHitTest(NcHitTest),
     NotifyIcon(NotifyIcon),
+    ColorModeChanged(ColorModeChanged),
     CloseRequest(CloseRequest),
     Closed,
     App(App),

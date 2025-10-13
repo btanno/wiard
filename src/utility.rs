@@ -1,13 +1,14 @@
 use crate::*;
+use std::sync::Arc;
 use windows::Win32::{
     Foundation::*,
     Graphics::Gdi::{MONITOR_DEFAULTTOPRIMARY, MonitorFromPoint},
-    System::Registry::{
-        HKEY_CURRENT_USER, REG_DWORD, REG_VALUE_TYPE, RRF_RT_REG_DWORD, RegGetValueW,
-    },
+    System::LibraryLoader::*,
+    UI::Controls::{CloseThemeData, HTHEME, OpenThemeData},
     UI::HiDpi::*,
     UI::WindowsAndMessaging::*,
 };
+use windows::core::{HSTRING, PCSTR};
 
 pub fn adjust_window_rect_ex_for_dpi(
     size: impl ToPhysical<u32, Output<u32> = PhysicalSize<u32>>,
@@ -87,29 +88,83 @@ pub fn lparam_to_size(lparam: LPARAM) -> PhysicalSize<u32> {
     Size::new(get_x_lparam(lparam) as _, get_y_lparam(lparam) as _)
 }
 
-/// Check the dark mode in Windows.
-pub fn is_dark_mode() -> bool {
-    let key =
-        windows::core::w!("Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize");
-    let value = windows::core::w!("AppsUseLightTheme");
-    unsafe {
-        let mut ty = REG_VALUE_TYPE::default();
-        let mut data = 0u32;
-        let mut size = std::mem::size_of::<u32>() as u32;
-        let ret = RegGetValueW(
-            HKEY_CURRENT_USER,
-            key,
-            value,
-            RRF_RT_REG_DWORD,
-            Some(&mut ty),
-            Some(&mut data as *mut u32 as *mut std::ffi::c_void),
-            Some(&mut size),
-        )
-        .ok();
-        if let Err(e) = ret {
-            error!("{e}");
-            return false;
+#[derive(Debug)]
+struct RawTheme(HTHEME);
+
+impl Drop for RawTheme {
+    fn drop(&mut self) {
+        unsafe {
+            let _ = CloseThemeData(self.0);
         }
-        ty == REG_DWORD && data == 0
     }
 }
+
+#[derive(Clone, Debug)]
+pub struct Theme {
+    handle: Arc<RawTheme>,
+}
+
+impl Theme {
+    #[inline]
+    pub fn new(hwnd: HWND, classes: &[&str]) -> Self {
+        let classes = HSTRING::from(classes.join(";"));
+        let handle = unsafe { OpenThemeData(Some(hwnd), &classes) };
+        Self {
+            handle: Arc::new(RawTheme(handle)),
+        }
+    }
+
+    #[inline]
+    pub fn handle(&self) -> HTHEME {
+        self.handle.0
+    }
+}
+
+#[derive(Clone)]
+pub struct Symbol<F> {
+    ptr: FARPROC,
+    _f: std::marker::PhantomData<F>,
+}
+
+impl<F> Symbol<F> {
+    fn new(ptr: FARPROC) -> Self {
+        Self {
+            ptr,
+            _f: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<F> std::ops::Deref for Symbol<F> {
+    type Target = F;
+
+    fn deref(&self) -> &F {
+        unsafe { &*(&self.ptr as *const FARPROC as *const F) }
+    }
+}
+
+pub struct Library(HMODULE);
+
+impl Library {
+    pub fn new(lib: &str) -> windows::core::Result<Self> {
+        unsafe {
+            let handle = LoadLibraryExW(&HSTRING::from(lib), None, LOAD_LIBRARY_SEARCH_SYSTEM32)?;
+            Ok(Self(handle))
+        }
+    }
+
+    pub fn get_proc_address<F>(&self, name: PCSTR) -> Symbol<F> {
+        unsafe { Symbol::new(GetProcAddress(self.0, name)) }
+    }
+}
+
+impl Drop for Library {
+    fn drop(&mut self) {
+        unsafe {
+            let _ = FreeLibrary(self.0);
+        }
+    }
+}
+
+unsafe impl Send for Library {}
+unsafe impl Sync for Library {}

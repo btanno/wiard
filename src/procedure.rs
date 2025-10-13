@@ -1,12 +1,13 @@
 use crate::*;
 use std::any::Any;
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::path::PathBuf;
 use tokio::sync::oneshot;
 use windows::Win32::{
-    Foundation::{HWND, LPARAM, LRESULT, POINT, RECT, SIZE, WPARAM},
-    Graphics::Gdi::{BeginPaint, EndPaint, GetUpdateRect, PAINTSTRUCT, ScreenToClient},
-    UI::Controls::WM_MOUSELEAVE,
+    Foundation::{COLORREF, HWND, LPARAM, LRESULT, POINT, RECT, SIZE, WPARAM},
+    Graphics::Dwm::*,
+    Graphics::Gdi::*,
+    UI::Controls::*,
     UI::HiDpi::{EnableNonClientDpiScaling, GetDpiForWindow},
     UI::Input::Ime::{ISC_SHOWUIALLCANDIDATEWINDOW, ISC_SHOWUICOMPOSITIONWINDOW},
     UI::Input::KeyboardAndMouse::{
@@ -15,16 +16,29 @@ use windows::Win32::{
     UI::Shell::{DragFinish, DragQueryFileW, DragQueryPoint, HDROP},
     UI::WindowsAndMessaging::*,
 };
+use windows::core::{BOOL, PWSTR};
 
 thread_local! {
     static UNWIND: RefCell<Option<Box<dyn Any + Send>>> = RefCell::new(None);
     static ENTERED: RefCell<Option<HWND>> = const { RefCell::new(None) };
+    static SYSTEM_DARK_MODE: Cell<bool> = Cell::new(is_system_dark_mode());
+    static DARK_MODE_BG_BRUSH: HBRUSH = unsafe { CreateSolidBrush(COLORREF(0x00292929)) };
+    static DARK_MODE_BG_HOT_BRUSH: HBRUSH = unsafe { CreateSolidBrush(COLORREF(0x003d3d3d)) };
+    static DARK_MODE_BG_SELECTED_BRUSH: HBRUSH = unsafe { CreateSolidBrush(COLORREF(0x00353535)) };
 }
 
 fn set_unwind(e: Box<dyn Any + Send>) {
     UNWIND.with_borrow_mut(|unwind| {
         *unwind = Some(e);
     });
+}
+
+fn check_dark_mode(color_mode: ColorMode) -> bool {
+    match color_mode {
+        ColorMode::Dark => true,
+        ColorMode::System if SYSTEM_DARK_MODE.get() => true,
+        _ => false,
+    }
 }
 
 pub(crate) fn get_unwind() -> Option<Box<dyn Any + Send>> {
@@ -448,7 +462,9 @@ unsafe fn on_drop_files(hwnd: HWND, wparam: WPARAM, _lparam: LPARAM) -> LRESULT 
 
 unsafe fn on_nc_create(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     unsafe {
-        EnableNonClientDpiScaling(hwnd).ok();
+        if let Err(e) = EnableNonClientDpiScaling(hwnd) {
+            warning!("EnableNonClientDpiScaling: {e}");
+        }
         DefWindowProcW(hwnd, WM_NCCREATE, wparam, lparam)
     }
 }
@@ -610,6 +626,275 @@ unsafe fn on_context_menu(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> LRESULT
     }
 }
 
+const WM_UAHDRAWMENU: u32 = 0x0091;
+const WM_UAHDRAWMENUITEM: u32 = 0x0092;
+
+#[derive(Debug)]
+#[repr(C)]
+#[allow(non_snake_case)]
+struct UAHMENU {
+    hmenu: HMENU,
+    hdc: HDC,
+    dwFlags: u32,
+}
+
+#[derive(Clone, Copy, Debug)]
+#[repr(C)]
+struct UAHMENUITEMMETRICSType {
+    cx: u32,
+    cy: u32,
+}
+
+#[repr(C)]
+#[allow(non_snake_case)]
+union UAHMENUITEMMETRICS {
+    rgsizeBar: [UAHMENUITEMMETRICSType; 2],
+    rgsizePopup: [UAHMENUITEMMETRICSType; 4],
+}
+
+#[repr(C)]
+#[allow(non_snake_case)]
+struct UAHMENUPOPUPMETRICS {
+    rgcx: [u32; 4],
+    fUpdateMaxWidths: u32,
+}
+
+#[repr(C)]
+#[allow(non_snake_case)]
+struct UAHMENUITEM {
+    iPoisition: i32,
+    umim: UAHMENUITEMMETRICS,
+    umpm: UAHMENUPOPUPMETRICS,
+}
+
+#[repr(C)]
+#[allow(non_snake_case)]
+struct UAHDRAWMENUITTEM {
+    dis: DRAWITEMSTRUCT,
+    um: UAHMENU,
+    umi: UAHMENUITEM,
+}
+
+unsafe fn on_uah_draw_menu(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+    unsafe {
+        let color_mode =
+            Context::get_window_props(WindowHandle::new(hwnd), |props| props.color_mode).unwrap();
+        if !check_dark_mode(color_mode) {
+            return DefWindowProcW(hwnd, WM_UAHDRAWMENU, wparam, lparam);
+        }
+        let um = (lparam.0 as *const UAHMENU).as_ref().unwrap();
+        let mut mbi = MENUBARINFO {
+            cbSize: std::mem::size_of::<MENUBARINFO>() as u32,
+            ..Default::default()
+        };
+        let _ = GetMenuBarInfo(hwnd, OBJID_MENU, 0, &mut mbi);
+        let mut rc = mbi.rcBar;
+        let window_rc = get_window_rect(hwnd);
+        let _ = OffsetRect(&mut rc, -window_rc.left, -window_rc.top);
+        DARK_MODE_BG_BRUSH.with(|brush| {
+            FillRect(um.hdc, &rc, *brush);
+        });
+        LRESULT(0)
+    }
+}
+
+unsafe fn on_uah_draw_menu_item(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+    unsafe {
+        let color_mode =
+            Context::get_window_props(WindowHandle::new(hwnd), |props| props.color_mode).unwrap();
+        if !check_dark_mode(color_mode) {
+            return DefWindowProcW(hwnd, WM_UAHDRAWMENUITEM, wparam, lparam);
+        }
+        let theme_menu =
+            Context::get_window_props(WindowHandle::new(hwnd), |props| props.theme_menu.clone())
+                .unwrap();
+        let udmi = (lparam.0 as *mut UAHDRAWMENUITTEM).as_mut().unwrap();
+        let menu_str = {
+            let mut buffer = vec![0u16; 256];
+            let mut mii = MENUITEMINFOW {
+                cbSize: std::mem::size_of::<MENUITEMINFOW>() as u32,
+                fMask: MIIM_STRING,
+                dwTypeData: PWSTR(buffer.as_mut_ptr()),
+                cch: (buffer.len() - 1) as u32,
+                ..Default::default()
+            };
+            let _ = GetMenuItemInfoW(udmi.um.hmenu, udmi.umi.iPoisition as u32, true, &mut mii);
+            buffer.resize(mii.cch as usize, 0);
+            buffer
+        };
+        let mut flags = DT_CENTER | DT_SINGLELINE | DT_VCENTER;
+        let mut state = POPUPITEMSTATES(0);
+        let mut bg_brush = DARK_MODE_BG_BRUSH.with(|brush| *brush);
+        if (udmi.dis.itemState.0 & ODS_INACTIVE.0) != 0
+            || (udmi.dis.itemState.0 & ODS_DEFAULT.0) != 0
+        {
+            state = MPI_NORMAL;
+        }
+        if (udmi.dis.itemState.0 & ODS_HOTLIGHT.0) != 0 {
+            state = MPI_HOT;
+            bg_brush = DARK_MODE_BG_HOT_BRUSH.with(|brush| *brush);
+        }
+        if (udmi.dis.itemState.0 & ODS_SELECTED.0) != 0 {
+            state = MPI_HOT;
+            bg_brush = DARK_MODE_BG_SELECTED_BRUSH.with(|brush| *brush);
+        }
+        if (udmi.dis.itemState.0 & ODS_DISABLED.0) != 0
+            || (udmi.dis.itemState.0 & ODS_GRAYED.0) != 0
+        {
+            state = MPI_DISABLED;
+        }
+        if (udmi.dis.itemState.0 & ODS_NOACCEL.0) != 0 {
+            flags |= DT_HIDEPREFIX;
+        }
+        let opts = DTTOPTS {
+            dwSize: std::mem::size_of::<DTTOPTS>() as u32,
+            dwFlags: DTT_TEXTCOLOR,
+            crText: if state == MPI_DISABLED {
+                COLORREF(0x006d6d6d)
+            } else {
+                COLORREF(0x00ffffff)
+            },
+            ..Default::default()
+        };
+        FillRect(udmi.um.hdc, &udmi.dis.rcItem, bg_brush);
+        let _ = DrawThemeTextEx(
+            theme_menu.handle(),
+            udmi.um.hdc,
+            MENU_BARITEM.0,
+            MBI_NORMAL.0,
+            &menu_str,
+            flags,
+            &mut udmi.dis.rcItem,
+            Some(&opts),
+        );
+        LRESULT(0)
+    }
+}
+
+fn draw_menu_bar_border_line(hwnd: HWND) {
+    let color_mode =
+        Context::get_window_props(WindowHandle::new(hwnd), |props| props.color_mode).unwrap();
+    if !check_dark_mode(color_mode) {
+        return;
+    }
+    unsafe {
+        let mut client_rc = {
+            let mut rc = get_client_rect(hwnd);
+            let mut pt = [
+                POINT {
+                    x: rc.left,
+                    y: rc.top,
+                },
+                POINT {
+                    x: rc.right,
+                    y: rc.bottom,
+                },
+            ];
+            MapWindowPoints(Some(hwnd), None, &mut pt);
+            rc.left = pt[0].x;
+            rc.top = pt[0].y;
+            rc.right = pt[1].x;
+            rc.bottom = pt[1].y;
+            rc
+        };
+        let rc = get_window_rect(hwnd);
+        let _ = OffsetRect(&mut client_rc, -rc.left, -rc.top);
+        let mut rc = client_rc;
+        rc.bottom = rc.top;
+        rc.top -= 3;
+        let hdc = GetWindowDC(Some(hwnd));
+        FillRect(hdc, &rc, DARK_MODE_BG_BRUSH.with(|brush| *brush));
+        ReleaseDC(Some(hwnd), hdc);
+    }
+}
+
+unsafe fn on_nc_paint(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+    unsafe {
+        DefWindowProcW(hwnd, WM_NCPAINT, wparam, lparam);
+        draw_menu_bar_border_line(hwnd);
+        LRESULT(0)
+    }
+}
+
+unsafe fn on_nc_activate(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+    unsafe {
+        DefWindowProcW(hwnd, WM_NCACTIVATE, wparam, lparam);
+        draw_menu_bar_border_line(hwnd);
+        LRESULT(0)
+    }
+}
+
+pub(crate) fn change_color_mode(hwnd: HWND, color_mode: ColorMode) {
+    let window_handle = WindowHandle::new(hwnd);
+    let prev_color_mode_state =
+        Context::get_window_props(window_handle, |props| props.color_mode_state).unwrap();
+    let system_dark_mode = is_system_dark_mode();
+    let color_mode_state = match color_mode {
+        ColorMode::Dark => ColorModeState::Dark,
+        ColorMode::System if system_dark_mode => ColorModeState::Dark,
+        _ => ColorModeState::Light,
+    };
+    if color_mode_state == prev_color_mode_state {
+        return;
+    }
+    unsafe {
+        let _ = DwmSetWindowAttribute(
+            hwnd,
+            DWMWA_USE_IMMERSIVE_DARK_MODE,
+            &BOOL::from(color_mode_state == ColorModeState::Dark) as *const BOOL
+                as *const std::ffi::c_void,
+            std::mem::size_of::<u32>() as u32,
+        );
+        SYSTEM_DARK_MODE.set(system_dark_mode);
+        let app_mode = match color_mode {
+            ColorMode::System => APPMODE_ALLOWDARK,
+            ColorMode::Dark => APPMODE_FORCEDARK,
+            ColorMode::Light => APPMODE_FORCELIGHT,
+        };
+        set_preferred_app_mode(APPMODE_FORCEDARK); // workaround for a trasition to APPMODE_FORCELIGHT
+        refresh_immersive_color_policy_state();
+        set_preferred_app_mode(app_mode);
+        refresh_immersive_color_policy_state();
+        let _ = RedrawWindow(
+            Some(hwnd),
+            None,
+            None,
+            RDW_FRAME | RDW_INVALIDATE | RDW_ALLCHILDREN,
+        );
+    }
+    Context::set_window_props(window_handle, |props| {
+        props.color_mode = color_mode;
+        props.color_mode_state = color_mode_state;
+    });
+    Context::send_event(
+        window_handle,
+        Event::ColorModeChanged(event::ColorModeChanged {
+            current: color_mode_state,
+            previous: prev_color_mode_state,
+        }),
+    );
+}
+
+unsafe fn on_setting_change(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+    unsafe {
+        if lparam.0 == 0 {
+            return DefWindowProcW(hwnd, WM_SETTINGCHANGE, wparam, lparam);
+        }
+        let param = std::slice::from_raw_parts(lparam.0 as *const u16, 1024);
+        let len = param.iter().position(|p| *p == 0).unwrap_or(1024);
+        let param =
+            String::from_utf16_lossy(std::slice::from_raw_parts(lparam.0 as *const u16, len));
+        if param == "ImmersiveColorSet" {
+            change_color_mode(
+                hwnd,
+                Context::get_window_props(WindowHandle::new(hwnd), |props| props.color_mode)
+                    .unwrap(),
+            );
+        }
+        LRESULT(0)
+    }
+}
+
 fn wparam_to_button(wparam: WPARAM) -> MouseButton {
     match get_xbutton_wparam(wparam) {
         0x0001 => MouseButton::Ex(0),
@@ -627,6 +912,9 @@ pub(crate) extern "system" fn window_proc(
     let ret = std::panic::catch_unwind(|| unsafe {
         match msg {
             WM_PAINT => on_paint(hwnd),
+            WM_NCPAINT => on_nc_paint(hwnd, wparam, lparam),
+            WM_UAHDRAWMENU => on_uah_draw_menu(hwnd, wparam, lparam),
+            WM_UAHDRAWMENUITEM => on_uah_draw_menu_item(hwnd, wparam, lparam),
             WM_MOUSEMOVE => on_mouse_move(hwnd, wparam, lparam),
             WM_SETCURSOR => on_set_cursor(hwnd, wparam, lparam),
             WM_MOUSELEAVE => on_mouse_leave(hwnd, wparam, lparam),
@@ -706,6 +994,7 @@ pub(crate) extern "system" fn window_proc(
             WM_ENTERSIZEMOVE => on_enter_size_move(hwnd, wparam, lparam),
             WM_EXITSIZEMOVE => on_exit_size_move(hwnd, wparam, lparam),
             WM_ACTIVATE => on_activate(hwnd, wparam, lparam),
+            WM_NCACTIVATE => on_nc_activate(hwnd, wparam, lparam),
             WM_DPICHANGED => on_dpi_changed(hwnd, wparam, lparam),
             WM_GETDPISCALEDSIZE => on_get_dpi_scaled_size(hwnd, wparam, lparam),
             WM_DROPFILES => on_drop_files(hwnd, wparam, lparam),
@@ -713,6 +1002,7 @@ pub(crate) extern "system" fn window_proc(
             WM_NCHITTEST => on_nc_hittest(hwnd, wparam, lparam),
             WM_MENUCOMMAND => on_menu_command(hwnd, wparam, lparam),
             WM_CONTEXTMENU => on_context_menu(hwnd, wparam, lparam),
+            WM_SETTINGCHANGE => on_setting_change(hwnd, wparam, lparam),
             WM_CLOSE => on_close(hwnd, wparam, lparam),
             WM_DESTROY => on_destroy(hwnd),
             _ => {

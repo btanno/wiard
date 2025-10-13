@@ -4,13 +4,22 @@ fn main() -> anyhow::Result<()> {
     let menu_index_quit = file_menu.push(wiard::MenuItem::builder().text("quit(&Q)"))?;
     let menu = wiard::Menu::new()?;
     let menu_index_item = menu.push(wiard::MenuItem::builder().text("item"))?;
+    let color_menu = wiard::Menu::new()?;
+    let color_menu_system = color_menu.push(wiard::MenuItem::builder().text("system"))?;
+    let color_menu_light = color_menu.push(wiard::MenuItem::builder().text("light"))?;
+    let color_menu_dark = color_menu.push(wiard::MenuItem::builder().text("dark"))?;
     let header_menu = wiard::MenuBar::new()?;
     header_menu.push(
         wiard::MenuBarItem::builder()
-            .text("file(&F)")
+            .text("File(&F)")
             .sub_menu(&file_menu),
     )?;
-    header_menu.push(wiard::MenuBarItem::builder().text("menu").sub_menu(&menu))?;
+    header_menu.push(wiard::MenuBarItem::builder().text("Menu").sub_menu(&menu))?;
+    header_menu.push(
+        wiard::MenuBarItem::builder()
+            .text("Color")
+            .sub_menu(&color_menu),
+    )?;
     let window = wiard::Window::builder(&event_rx)
         .title("wiard menu")
         .menu(&header_menu)
@@ -26,7 +35,17 @@ fn main() -> anyhow::Result<()> {
                 }
             } else if mc.handle == menu && mc.index == menu_index_item {
                 println!("clicked help/item");
+            } else if mc.handle == color_menu {
+                if mc.index == color_menu_system {
+                    window.set_color_mode(wiard::ColorMode::System);
+                } else if mc.index == color_menu_light {
+                    window.set_color_mode(wiard::ColorMode::Light);
+                } else if mc.index == color_menu_dark {
+                    window.set_color_mode(wiard::ColorMode::Dark);
+                }
             }
+        } else if let wiard::Event::ColorModeChanged(ev) = event {
+            println!("{ev:?}");
         }
     }
     Ok(())
