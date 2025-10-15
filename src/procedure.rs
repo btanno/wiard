@@ -472,7 +472,7 @@ unsafe fn on_nc_create(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
 unsafe fn on_nc_hittest(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     unsafe {
         let hook = Context::get_window_props(WindowHandle::new(hwnd), |props| props.nc_hittest);
-        if hook.unwrap_or(false) {
+        if !hook.unwrap_or(false) {
             return DefWindowProcW(hwnd, WM_NCHITTEST, wparam, lparam);
         }
         let (tx, rx) = oneshot::channel();
