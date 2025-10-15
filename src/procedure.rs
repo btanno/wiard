@@ -471,9 +471,8 @@ unsafe fn on_nc_create(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
 
 unsafe fn on_nc_hittest(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     unsafe {
-        let hook =
-            Context::get_window_props(WindowHandle::new(hwnd), |props| props.nc_hittest).unwrap();
-        if !hook {
+        let hook = Context::get_window_props(WindowHandle::new(hwnd), |props| props.nc_hittest);
+        if hook.unwrap_or(false) {
             return DefWindowProcW(hwnd, WM_NCHITTEST, wparam, lparam);
         }
         let (tx, rx) = oneshot::channel();
@@ -810,17 +809,17 @@ fn draw_menu_bar_border_line(hwnd: HWND) {
 
 unsafe fn on_nc_paint(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     unsafe {
-        DefWindowProcW(hwnd, WM_NCPAINT, wparam, lparam);
+        let ret = DefWindowProcW(hwnd, WM_NCPAINT, wparam, lparam);
         draw_menu_bar_border_line(hwnd);
-        LRESULT(0)
+        ret
     }
 }
 
 unsafe fn on_nc_activate(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     unsafe {
-        DefWindowProcW(hwnd, WM_NCACTIVATE, wparam, lparam);
+        let ret = DefWindowProcW(hwnd, WM_NCACTIVATE, wparam, lparam);
         draw_menu_bar_border_line(hwnd);
-        LRESULT(0)
+        ret
     }
 }
 
@@ -918,13 +917,16 @@ pub(crate) extern "system" fn window_proc(
             WM_MOUSEMOVE => on_mouse_move(hwnd, wparam, lparam),
             WM_SETCURSOR => on_set_cursor(hwnd, wparam, lparam),
             WM_MOUSELEAVE => on_mouse_leave(hwnd, wparam, lparam),
-            WM_LBUTTONDOWN => on_mouse_input(
-                hwnd,
-                MouseButton::Left,
-                ButtonState::Pressed,
-                wparam,
-                lparam,
-            ),
+            WM_LBUTTONDOWN => {
+                on_mouse_input(
+                    hwnd,
+                    MouseButton::Left,
+                    ButtonState::Pressed,
+                    wparam,
+                    lparam,
+                );
+                DefWindowProcW(hwnd, WM_LBUTTONDOWN, wparam, lparam)
+            }
             WM_RBUTTONDOWN => on_mouse_input(
                 hwnd,
                 MouseButton::Right,
@@ -963,13 +965,16 @@ pub(crate) extern "system" fn window_proc(
                 );
                 DefWindowProcW(hwnd, msg, wparam, lparam)
             }
-            WM_MBUTTONUP => on_mouse_input(
-                hwnd,
-                MouseButton::Middle,
-                ButtonState::Released,
-                wparam,
-                lparam,
-            ),
+            WM_MBUTTONUP => {
+                on_mouse_input(
+                    hwnd,
+                    MouseButton::Middle,
+                    ButtonState::Released,
+                    wparam,
+                    lparam,
+                );
+                DefWindowProcW(hwnd, msg, wparam, lparam)
+            }
             WM_XBUTTONUP => on_mouse_input(
                 hwnd,
                 wparam_to_button(wparam),
