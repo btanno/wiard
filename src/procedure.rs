@@ -1,6 +1,7 @@
 use crate::*;
 use std::any::Any;
 use std::cell::{Cell, RefCell};
+use std::collections::HashMap;
 use std::path::PathBuf;
 use tokio::sync::oneshot;
 use windows::Win32::{
@@ -20,7 +21,8 @@ use windows::core::{BOOL, PWSTR};
 
 thread_local! {
     static UNWIND: RefCell<Option<Box<dyn Any + Send>>> = RefCell::new(None);
-    static ENTERED: RefCell<Option<HWND>> = const { RefCell::new(None) };
+    static ENTERED: RefCell<Option<HWND>> = RefCell::new(None);
+    static RAW_PROCEDURE_HANDLER: RefCell<HashMap<*mut std::ffi::c_void, Vec<Box<dyn Fn(u32, WPARAM, LPARAM)>>>> = RefCell::new(HashMap::new());
     static SYSTEM_DARK_MODE: Cell<bool> = Cell::new(is_system_dark_mode());
     static DARK_MODE_BG_BRUSH: HBRUSH = unsafe { CreateSolidBrush(COLORREF(0x00292929)) };
     static DARK_MODE_BG_HOT_BRUSH: HBRUSH = unsafe { CreateSolidBrush(COLORREF(0x003d3d3d)) };
@@ -43,6 +45,43 @@ fn check_dark_mode(color_mode: ColorMode) -> bool {
 
 pub(crate) fn get_unwind() -> Option<Box<dyn Any + Send>> {
     UNWIND.with_borrow_mut(|unwind| unwind.take())
+}
+
+pub(crate) fn new_raw_procedure_handler(window: WindowHandle) {
+    RAW_PROCEDURE_HANDLER.with(|handler| {
+        let mut handler = handler.borrow_mut();
+        handler.insert(window.as_hwnd().0, vec![]);
+    });
+}
+
+pub(crate) fn add_raw_procedure_handler<F>(window: WindowHandle, f: F)
+where
+    F: Fn(u32, WPARAM, LPARAM) + Send + 'static,
+{
+    RAW_PROCEDURE_HANDLER.with(|handler| {
+        let mut handler = handler.borrow_mut();
+        let v = handler.get_mut(&window.as_hwnd().0).unwrap();
+        v.push(Box::new(f));
+    });
+}
+
+fn call_raw_procedure_handler(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) {
+    RAW_PROCEDURE_HANDLER.with(|handler| {
+        let handler = handler.borrow();
+        let v = handler.get(&hwnd.0);
+        if let Some(v) = v.as_ref() {
+            for f in v.iter() {
+                f(msg, wparam, lparam);
+            }
+        }
+    });
+}
+
+fn remove_raw_procedure_handler(hwnd: HWND) {
+    RAW_PROCEDURE_HANDLER.with(|handler| {
+        let mut handler = handler.borrow_mut();
+        handler.remove(&hwnd.0);
+    });
 }
 
 unsafe fn on_paint(hwnd: HWND) -> LRESULT {
@@ -505,6 +544,7 @@ unsafe fn on_close(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
 unsafe fn on_destroy(hwnd: HWND) -> LRESULT {
     unsafe {
         let handle = WindowHandle::new(hwnd);
+        remove_raw_procedure_handler(hwnd);
         Context::send_event(handle, Event::Closed);
         Context::remove_window(handle);
         if Context::is_empty() {
@@ -909,6 +949,7 @@ pub(crate) extern "system" fn window_proc(
     lparam: LPARAM,
 ) -> LRESULT {
     let ret = std::panic::catch_unwind(|| unsafe {
+        call_raw_procedure_handler(hwnd, msg, wparam, lparam);
         match msg {
             WM_PAINT => on_paint(hwnd),
             WM_NCPAINT => on_nc_paint(hwnd, wparam, lparam),

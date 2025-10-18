@@ -5,13 +5,13 @@ use tokio::sync::oneshot;
 use windows::Win32::{Foundation::LPARAM, UI::WindowsAndMessaging::*};
 
 /// An event when a window request to draw.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Draw {
     pub invalidate_rect: PhysicalRect<i32>,
 }
 
 /// An event when window moved.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Moved {
     pub position: ScreenPosition<i32>,
 }
@@ -31,20 +31,20 @@ pub enum ResizingEdge {
 }
 
 /// An event when resizing a window;
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Resizing {
     pub size: PhysicalSize<u32>,
     pub edge: ResizingEdge,
 }
 
 /// An event when resized or restored a window from maximized.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Resized {
     pub size: PhysicalSize<u32>,
 }
 
 /// An event when a mouse button pressed and released.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct MouseInput {
     pub button: MouseButton,
     pub button_state: ButtonState,
@@ -52,13 +52,13 @@ pub struct MouseInput {
 }
 
 /// An event when a mouse cursor moved.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct CursorMoved {
     pub mouse_state: MouseState,
 }
 
 /// An event when a mouse cursor entered a window.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct CursorEntered {
     pub mouse_state: MouseState,
 }
@@ -70,7 +70,7 @@ pub struct CursorLeft {
 }
 
 // An event when a mouse wheel is rotated.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct MouseWheel {
     pub axis: MouseWheelAxis,
     pub distance: i32,
@@ -78,7 +78,7 @@ pub struct MouseWheel {
 }
 
 /// An event when keyboard is input.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct KeyInput {
     pub key_code: KeyCode,
     pub key_state: KeyState,
@@ -93,7 +93,7 @@ impl KeyInput {
 }
 
 /// An event that receive a keyboard input as the charcter code.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct CharInput {
     pub c: char,
 }
@@ -136,7 +136,7 @@ impl Drop for ImeBeginComposition {
 }
 
 /// An event when IME composition is updated.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct ImeUpdateComposition {
     pub chars: Vec<char>,
     pub clauses: Vec<ime::Clause>,
@@ -144,38 +144,38 @@ pub struct ImeUpdateComposition {
 }
 
 /// An event when IME composition is finished.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct ImeEndComposition {
     pub result: Option<String>,
 }
 
 /// An event when IME candidate list is updated.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct ImeUpdateCandidateList {
     pub selection: usize,
     pub items: Vec<String>,
 }
 
 /// An event of maximized a window.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Maximized {
     pub size: PhysicalSize<u32>,
 }
 
 /// An event of restored a window from minimized.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Restored {
     pub size: PhysicalSize<u32>,
 }
 
 /// An event of changed DPI.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct DpiChanged {
     pub new_dpi: u32,
 }
 
 /// An event of dropped files.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct DropFiles {
     pub paths: Vec<PathBuf>,
     pub position: PhysicalPosition<i32>,
@@ -248,7 +248,7 @@ impl Drop for NcHitTest {
 }
 
 /// An event of occurred at the notify icon.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct NotifyIcon {
     pub id: super::NotifyIcon,
     pub event: NotifyIconEvent,
@@ -269,21 +269,21 @@ impl PartialEq<NotifyIcon> for super::NotifyIcon {
 }
 
 /// An event of pushed the menu item.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct MenuCommand {
     pub index: usize,
     pub handle: MenuHandle,
 }
 
 /// An event that requests to show context menu.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct ContextMenu {
     pub clicked_window: WindowHandle,
     pub position: ScreenPosition<i32>,
 }
 
 /// An event of changed the color mode.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct ColorModeChanged {
     pub current: ColorModeState,
     pub previous: ColorModeState,
@@ -315,7 +315,7 @@ impl CloseRequest {
 }
 
 /// An event which defined by an user.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct App {
     pub index: u32,
     pub value0: usize,
@@ -334,7 +334,7 @@ impl App {
 }
 
 /// Other window messages
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Other {
     pub msg: u32,
     pub wparam: usize,

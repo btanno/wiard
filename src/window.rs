@@ -42,7 +42,8 @@ impl WindowHandle {
         Self(hwnd)
     }
 
-    pub(crate) fn as_hwnd(&self) -> HWND {
+    #[inline]
+    pub fn as_hwnd(&self) -> HWND {
         self.0
     }
 }
@@ -79,8 +80,8 @@ pub enum WindowKind {
     InnerWindow(InnerWindow),
 }
 
-impl WindowKind {
-    pub(crate) fn window_handle(&self) -> WindowHandle {
+impl IsWindow for WindowKind {
+    fn window_handle(&self) -> WindowHandle {
         match self {
             Self::Window(w) => w.handle,
             Self::InnerWindow(w) => w.handle,
@@ -95,8 +96,8 @@ pub enum AsyncWindowKind {
     InnerWindow(AsyncInnerWindow),
 }
 
-impl AsyncWindowKind {
-    pub(crate) fn window_handle(&self) -> WindowHandle {
+impl IsWindow for AsyncWindowKind {
+    fn window_handle(&self) -> WindowHandle {
         match self {
             Self::Window(w) => w.handle,
             Self::InnerWindow(w) => w.handle,
@@ -932,6 +933,16 @@ mod methods {
             procedure::change_color_mode(handle.as_hwnd(), mode);
         });
     }
+
+    #[inline]
+    pub fn add_raw_procedure_handler<F>(handle: WindowHandle, f: F)
+    where
+        F: Fn(u32, WPARAM, LPARAM) + Send + 'static,
+    {
+        UiThread::send_task(move || {
+            procedure::add_raw_procedure_handler(handle, f);
+        });
+    }
 }
 
 /// Represents a window.
@@ -1061,6 +1072,14 @@ impl Window {
     #[inline]
     pub fn set_color_mode(&self, mode: ColorMode) {
         methods::set_color_mode(self.window_handle(), mode);
+    }
+
+    #[inline]
+    pub fn add_raw_procedure_handler<F>(&self, f: F)
+    where
+        F: Fn(u32, WPARAM, LPARAM) + Send + 'static
+    {
+        methods::add_raw_procedure_handler(self.window_handle(), f);
     }
 
     #[inline]
@@ -1203,6 +1222,14 @@ impl AsyncWindow {
     #[inline]
     pub fn set_color_mode(&self, mode: ColorMode) {
         methods::set_color_mode(self.window_handle(), mode);
+    }
+
+    #[inline]
+    pub fn add_raw_procedure_handler<F>(&self, f: F)
+    where
+        F: Fn(u32, WPARAM, LPARAM) + Send + 'static,
+    {
+        methods::add_raw_procedure_handler(self.window_handle(), f);
     }
 
     #[inline]
@@ -1540,6 +1567,14 @@ impl InnerWindow {
     }
 
     #[inline]
+    pub fn add_raw_procedure_handler<F>(&self, f: F)
+    where
+        F: Fn(u32, WPARAM, LPARAM) + Send + 'static,
+    {
+        methods::add_raw_procedure_handler(self.window_handle(), f);
+    }
+
+    #[inline]
     pub fn raw_handle(&self) -> *mut std::ffi::c_void {
         self.handle.as_hwnd().0
     }
@@ -1637,6 +1672,14 @@ impl AsyncInnerWindow {
     #[inline]
     pub fn set_color_mode(&self, mode: ColorMode) {
         methods::set_color_mode(self.window_handle(), mode);
+    }
+
+    #[inline]
+    pub fn add_raw_procedure_handler<F>(&self, f: F)
+    where
+        F: Fn(u32, WPARAM, LPARAM) + Send + 'static,
+    {
+        methods::add_raw_procedure_handler(self.window_handle(), f);
     }
 
     #[inline]
