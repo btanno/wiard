@@ -65,6 +65,9 @@ impl Context {
         };
         let mut window_map = ctx.window_map.lock().unwrap();
         let window_handle = kind.window_handle();
+        UiThread::send_task(move || {
+            procedure::new_raw_procedure_handler(window_handle);
+        });
         let parent = props.parent;
         window_map.insert(
             window_handle,
@@ -76,9 +79,10 @@ impl Context {
             },
         );
         if let Some(parent) = parent
-            && let Some(parent_obj) = window_map.get_mut(&parent) {
-                parent_obj.children.push(window_handle);
-            }
+            && let Some(parent_obj) = window_map.get_mut(&parent)
+        {
+            parent_obj.children.push(window_handle);
+        }
     }
 
     pub fn remove_window(handle: WindowHandle) -> Option<Object> {

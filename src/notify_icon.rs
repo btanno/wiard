@@ -114,7 +114,7 @@ impl NotifyIcon {
 pub mod event {
     use super::*;
 
-    #[derive(Debug)]
+    #[derive(Clone, Debug)]
     pub struct MouseInput {
         pub button: MouseButton,
         pub button_state: ButtonState,
@@ -122,7 +122,7 @@ pub mod event {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum NotifyIconEvent {
     MouseInput(event::MouseInput),
     CursorMoved(ScreenPosition<i32>),

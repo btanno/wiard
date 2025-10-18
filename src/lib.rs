@@ -79,3 +79,7 @@ pub use style::*;
 pub use ui_thread::UiThread;
 use utility::*;
 pub use window::*;
+
+pub mod api {
+    pub use windows::*;
+}
