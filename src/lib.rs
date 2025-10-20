@@ -57,7 +57,7 @@ mod procedure;
 mod resource;
 pub mod style;
 mod ui_thread;
-mod utility;
+pub mod utility;
 mod window;
 
 pub use color::*;

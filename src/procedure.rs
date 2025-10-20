@@ -143,7 +143,7 @@ unsafe fn on_set_cursor(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     }
 }
 
-unsafe fn on_mouse_leave(hwnd: HWND, wparam: WPARAM, _lparam: LPARAM) -> LRESULT {
+unsafe fn on_mouse_leave(hwnd: HWND, _wparam: WPARAM, _lparam: LPARAM) -> LRESULT {
     unsafe {
         ENTERED.with(|entered| {
             *entered.borrow_mut() = None;
@@ -153,10 +153,7 @@ unsafe fn on_mouse_leave(hwnd: HWND, wparam: WPARAM, _lparam: LPARAM) -> LRESULT
         Context::send_event(
             WindowHandle::new(hwnd),
             Event::CursorLeft(event::CursorLeft {
-                mouse_state: MouseState {
-                    position: position.into(),
-                    buttons: wparam.into(),
-                },
+                position: position.into(),
             }),
         );
         LRESULT(0)
@@ -213,6 +210,7 @@ unsafe fn on_mouse_wheel(
                 mouse_state: MouseState {
                     position: PhysicalPosition::new(pt.x, pt.y),
                     buttons: mouse_state.buttons,
+                    keys: mouse_state.keys,
                 },
             }),
         );
