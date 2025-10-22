@@ -1,12 +1,78 @@
 use crate::*;
 use windows::Win32::Foundation::{LPARAM, POINT, WPARAM};
 use windows::Win32::Graphics::Gdi::{ClientToScreen, ScreenToClient};
+use windows::Win32::System::SystemServices::*;
 use windows::Win32::UI::WindowsAndMessaging::GetCursorPos;
+
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
+#[repr(u32)]
+enum MouseStateVirtualKey {
+    Ctrl = 0x1,
+    Shift = 0x2,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct MouseStateVirtualKeys(u32);
+
+impl MouseStateVirtualKeys {
+    #[inline]
+    pub fn contains(&self, key: VirtualKey) -> bool {
+        if key == VirtualKey::Ctrl {
+            self.0 & MouseStateVirtualKey::Ctrl as u32 != 0
+        } else if key == VirtualKey::Shift {
+            self.0 & MouseStateVirtualKey::Shift as u32 != 0
+        } else {
+            false
+        }
+    }
+
+    #[inline]
+    pub fn to_vec(&self) -> Vec<VirtualKey> {
+        let mut v = vec![];
+        if self.0 & MouseStateVirtualKey::Ctrl as u32 != 0 {
+            v.push(VirtualKey::Ctrl);
+        }
+        if self.0 & MouseStateVirtualKey::Shift as u32 != 0 {
+            v.push(VirtualKey::Shift);
+        }
+        v
+    }
+}
+
+impl From<WPARAM> for MouseStateVirtualKeys {
+    #[inline]
+    fn from(value: WPARAM) -> Self {
+        let value = loword(value.0 as i32) as u32;
+        let mut ret = 0;
+        if value & MK_CONTROL.0 != 0 {
+            ret |= MouseStateVirtualKey::Ctrl as u32;
+        }
+        if value & MK_SHIFT.0 != 0 {
+            ret |= MouseStateVirtualKey::Shift as u32;
+        }
+        Self(ret)
+    }
+}
+
+impl std::fmt::Debug for MouseStateVirtualKeys {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let v = self.to_vec();
+        write!(f, "{v:?}")
+    }
+}
+
+impl std::fmt::Display for MouseStateVirtualKeys {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let v = self.to_vec();
+        write!(f, "{v:?}")
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct MouseState {
     pub position: PhysicalPosition<i32>,
     pub buttons: MouseButtons,
+    pub keys: MouseStateVirtualKeys,
 }
 
 impl MouseState {
@@ -14,6 +80,7 @@ impl MouseState {
         Self {
             position: lparam_to_point(lparam),
             buttons: wparam.into(),
+            keys: wparam.into(),
         }
     }
 }

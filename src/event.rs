@@ -66,7 +66,7 @@ pub struct CursorEntered {
 /// An event when a mouse cursor left a window.
 #[derive(Debug)]
 pub struct CursorLeft {
-    pub mouse_state: MouseState,
+    pub position: PhysicalPosition<i32>,
 }
 
 // An event when a mouse wheel is rotated.
