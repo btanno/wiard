@@ -56,7 +56,7 @@ impl Thread {
                 let ret = loop {
                     let ret = GetMessageW(&mut msg, None, 0, 0);
                     if ret == BOOL(0) || ret == BOOL(-1) {
-                        Context::shutdown();
+                        Context::cleanup();
                         break msg.wParam.0 as u32;
                     }
                     match msg.message {

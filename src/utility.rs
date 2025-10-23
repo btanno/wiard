@@ -168,3 +168,11 @@ impl Drop for Library {
 
 unsafe impl Send for Library {}
 unsafe impl Sync for Library {}
+
+/// Shutdown UI thread.
+#[inline]
+pub fn shutdown() {
+    UiThread::send_task(|| unsafe {
+        PostQuitMessage(0);
+    });
+}

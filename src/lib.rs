@@ -83,3 +83,6 @@ pub use window::*;
 pub mod api {
     pub use windows::*;
 }
+
+#[doc(inline)]
+pub use utility::shutdown;
