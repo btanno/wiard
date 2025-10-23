@@ -98,7 +98,7 @@ impl Context {
         obj
     }
 
-    pub fn close_all_windows() {
+    pub fn send_closed_event_to_all_windows() {
         let window_map = get_context().window_map.lock().unwrap();
         for (_, obj) in window_map.iter() {
             obj.event_tx
@@ -147,7 +147,7 @@ impl Context {
     }
 
     pub fn send_panic(e: Box<dyn Any + Send>) {
-        Self::close_all_windows();
+        Self::send_closed_event_to_all_windows();
         ime::shutdown_text_service();
         let ctx = get_context();
         let mut event_txs = ctx.event_txs.lock().unwrap();
@@ -163,8 +163,8 @@ impl Context {
             .store(rx.id(), atomic::Ordering::SeqCst);
     }
 
-    pub fn shutdown() {
-        Self::close_all_windows();
+    pub fn cleanup() {
+        Self::send_closed_event_to_all_windows();
         ime::shutdown_text_service();
         let mut event_txs = get_context().event_txs.lock().unwrap();
         event_txs.clear();
