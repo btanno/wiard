@@ -830,9 +830,9 @@ mod methods {
 
     #[inline]
     pub fn close(handle: WindowHandle) {
-        UiThread::send_task(move || unsafe {
+        unsafe {
             PostMessageW(Some(handle.as_hwnd()), WM_CLOSE, WPARAM(0), LPARAM(0)).ok();
-        });
+        }
     }
 
     #[inline]
