@@ -4,9 +4,7 @@ use std::os::windows::prelude::*;
 use std::sync::{Mutex, OnceLock, mpsc};
 use windows::Win32::{
     Foundation::{HANDLE, LPARAM, WPARAM},
-    System::Com::{
-        COINIT_APARTMENTTHREADED, COINIT_DISABLE_OLE1DDE, CoInitializeEx, CoUninitialize,
-    },
+    System::Ole::{OleInitialize, OleUninitialize},
     System::Threading::GetThreadId,
     UI::HiDpi::*,
     UI::WindowsAndMessaging::{
@@ -47,7 +45,7 @@ impl Thread {
         let th = std::thread::Builder::new()
             .name("wiard UiThread".into())
             .spawn(move || unsafe {
-                CoInitializeEx(None, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE).unwrap();
+                OleInitialize(None).unwrap();
                 let _ = IsGUIThread(true);
                 Context::init().unwrap();
                 block_tx.send(()).ok();
@@ -81,7 +79,7 @@ impl Thread {
                         }
                     }
                 };
-                CoUninitialize();
+                OleUninitialize();
                 ret
             })
             .unwrap();
