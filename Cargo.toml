@@ -54,7 +54,7 @@ features = [
 
 [dev-dependencies]
 tokio = { version = "1", features = ["full"] }
-wry = "0.53"
+wry = "0.54"
 
 [dev-dependencies.windows]
 version = "0.62"
