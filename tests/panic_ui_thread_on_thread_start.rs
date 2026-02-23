@@ -5,5 +5,5 @@ fn panic_ui_thread_on_thread_start() {
         .on_thread_start(|| {
             panic!();
         })
-        .build();
+        .init();
 }

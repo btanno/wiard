@@ -5,7 +5,7 @@ fn ui_thread_on_thread_end() {
         .on_thread_end(|| {
             panic!();
         })
-        .build();
+        .init();
     let mut event_rx = wiard::EventReceiver::new();
     let window = wiard::Window::builder(&event_rx)
         .visible(false)

@@ -217,7 +217,7 @@ where
     }
 
     /// Initializes UI thread.
-    pub fn build(self) {
+    pub fn init(self) {
         THREAD.get_or_init(|| {
             enable_dpi_awareness();
             Mutex::new(Thread::new(self))
@@ -235,7 +235,7 @@ impl UiThread {
     ///
     #[inline]
     pub fn init() {
-        Builder::new().build();
+        Builder::new().init();
     }
 
     /// Start to build UI thread.
