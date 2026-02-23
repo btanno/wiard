@@ -72,7 +72,7 @@ pub use event::{Event, NcHitTestValue, ResizingEdge};
 pub use menu::{Menu, MenuBar, MenuBarItem, MenuHandle, MenuItem};
 use messages::*;
 #[doc(inline)]
-pub use notify_icon::*;
+pub use notify_icon::{NotifyIcon, NotifyIconEvent};
 pub use resource::*;
 #[doc(inline)]
 pub use style::*;
