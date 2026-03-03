@@ -54,7 +54,7 @@ impl Thread {
         let (task_tx, task_rx) = mpsc::channel::<Task>();
         let (block_tx, block_rx) = mpsc::channel::<()>();
         let th = std::thread::Builder::new()
-            .name("wiard UiThread".into())
+            .name("wiard_UiThread".into())
             .spawn(move || unsafe {
                 (builder.on_thread_start)();
                 let _ = IsGUIThread(true);
@@ -303,5 +303,18 @@ impl UiThread {
             return Ok(0);
         };
         th.join()
+    }
+
+    /// Get UI thread ID.
+    #[inline]
+    pub fn id() -> Option<std::thread::ThreadId> {
+        THREAD
+            .get()
+            .unwrap()
+            .lock()
+            .unwrap()
+            .th
+            .as_ref()
+            .map(|th| th.thread().id())
     }
 }
