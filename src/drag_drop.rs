@@ -5,7 +5,7 @@ use tokio::sync::oneshot;
 use windows::Win32::{
     Foundation::*,
     System::{Com::*, Memory::*, Ole::*, SystemServices::*},
-    UI::Shell::{DragQueryFileW, HDROP},
+    UI::Shell::{CLSID_DragDropHelper, DragQueryFileW, HDROP, IDropTargetHelper},
 };
 use windows::core::{Ref, implement};
 
@@ -80,13 +80,17 @@ impl From<DROPEFFECT> for Effect {
 #[implement(IDropTarget)]
 pub struct DropTarget {
     handle: WindowHandle,
+    helper: IDropTargetHelper,
 }
 
 impl DropTarget {
     #[inline]
     pub fn new(handle: &WindowHandle) -> Self {
+        let helper: IDropTargetHelper =
+            unsafe { CoCreateInstance(&CLSID_DragDropHelper, None, CLSCTX_INPROC_SERVER).unwrap() };
         Self {
             handle: handle.clone(),
+            helper,
         }
     }
 
@@ -105,18 +109,18 @@ impl IDropTarget_Impl for DropTarget_Impl {
         pdweffect: *mut DROPEFFECT,
     ) -> windows_core::Result<()> {
         unsafe {
-            let Some(data) = pdataobj.as_ref() else {
+            let Some(dataobj) = pdataobj.as_ref() else {
                 *pdweffect = DROPEFFECT_NONE;
                 return Ok(());
             };
-            let Some(data) = Data::new(data)? else {
+            let Some(data) = Data::new(dataobj)? else {
                 *pdweffect = DROPEFFECT_NONE;
                 return Ok(());
             };
             let (tx, rx) = oneshot::channel();
             let ev = event::DragEnter {
                 data,
-                position: ScreenPosition::new(pt.x, pt.y),
+                position: screen_to_client(&self.handle, (pt.x, pt.y).into()),
                 modifier_keys: grfkeystate.into(),
                 effect: (*pdweffect).into(),
                 tx: Some(tx),
@@ -124,6 +128,12 @@ impl IDropTarget_Impl for DropTarget_Impl {
             Context::send_event(self.handle, Event::DragEnter(ev));
             let effect = rx.blocking_recv().unwrap();
             *pdweffect = effect.into();
+            self.helper.DragEnter(
+                self.handle.as_hwnd(),
+                dataobj,
+                &POINT { x: pt.x, y: pt.y },
+                *pdweffect,
+            )?;
             Ok(())
         }
     }
@@ -137,7 +147,7 @@ impl IDropTarget_Impl for DropTarget_Impl {
         unsafe {
             let (tx, rx) = oneshot::channel();
             let ev = event::DragOver {
-                position: ScreenPosition::new(pt.x, pt.y),
+                position: screen_to_client(&self.handle, (pt.x, pt.y).into()),
                 modifier_keys: grfkeystate.into(),
                 effect: (*pdweffect).into(),
                 tx: Some(tx),
@@ -145,12 +155,17 @@ impl IDropTarget_Impl for DropTarget_Impl {
             Context::send_event(self.handle, Event::DragOver(ev));
             let effect = rx.blocking_recv().unwrap();
             *pdweffect = effect.into();
+            self.helper
+                .DragOver(&POINT { x: pt.x, y: pt.y }, *pdweffect)?;
             Ok(())
         }
     }
 
     fn DragLeave(&self) -> windows_core::Result<()> {
         Context::send_event(self.handle, Event::DragLeave);
+        unsafe {
+            self.helper.DragLeave()?;
+        }
         Ok(())
     }
 
@@ -162,18 +177,18 @@ impl IDropTarget_Impl for DropTarget_Impl {
         pdweffect: *mut DROPEFFECT,
     ) -> windows_core::Result<()> {
         unsafe {
-            let Some(data) = pdataobj.as_ref() else {
+            let Some(dataobj) = pdataobj.as_ref() else {
                 *pdweffect = DROPEFFECT_NONE;
                 return Ok(());
             };
-            let Some(data) = Data::new(data)? else {
+            let Some(data) = Data::new(dataobj)? else {
                 *pdweffect = DROPEFFECT_NONE;
                 return Ok(());
             };
             let (tx, rx) = oneshot::channel();
             let ev = event::Drop {
                 data,
-                position: ScreenPosition::new(pt.x, pt.y),
+                position: screen_to_client(&self.handle, (pt.x, pt.y).into()),
                 modifier_keys: grfkeystate.into(),
                 effect: (*pdweffect).into(),
                 tx: Some(tx),
@@ -181,6 +196,8 @@ impl IDropTarget_Impl for DropTarget_Impl {
             Context::send_event(self.handle, Event::Drop(ev));
             let effect = rx.blocking_recv().unwrap();
             *pdweffect = effect.into();
+            self.helper
+                .Drop(dataobj, &POINT { x: pt.x, y: pt.y }, *pdweffect)?;
             Ok(())
         }
     }

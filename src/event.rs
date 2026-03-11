@@ -283,7 +283,7 @@ pub struct ColorModeChanged {
 
 #[derive(Debug)]
 pub struct DragEnter {
-    pub position: ScreenPosition<i32>,
+    pub position: PhysicalPosition<i32>,
     pub modifier_keys: ModifierKey,
     pub data: drag_drop::Data,
     pub effect: drag_drop::Effect,
@@ -299,7 +299,7 @@ impl std::ops::Drop for DragEnter {
 
 #[derive(Debug)]
 pub struct DragOver {
-    pub position: ScreenPosition<i32>,
+    pub position: PhysicalPosition<i32>,
     pub modifier_keys: ModifierKey,
     pub effect: drag_drop::Effect,
     pub(crate) tx: Option<oneshot::Sender<drag_drop::Effect>>,
@@ -314,7 +314,7 @@ impl std::ops::Drop for DragOver {
 
 #[derive(Debug)]
 pub struct Drop {
-    pub position: ScreenPosition<i32>,
+    pub position: PhysicalPosition<i32>,
     pub modifier_keys: ModifierKey,
     pub data: drag_drop::Data,
     pub effect: drag_drop::Effect,

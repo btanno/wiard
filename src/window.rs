@@ -64,6 +64,12 @@ impl std::hash::Hash for WindowHandle {
     }
 }
 
+impl IsWindow for WindowHandle {
+    fn window_handle(&self) -> WindowHandle {
+        self.clone()
+    }
+}
+
 /// `EventReceive` and `AsyncEventReceiver` are implement this trait.
 pub trait IsReceiver {
     fn id(&self) -> u64;
