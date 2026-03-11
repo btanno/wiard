@@ -1,6 +1,5 @@
 use crate::*;
 use std::cell::Cell;
-use std::path::PathBuf;
 use tokio::sync::oneshot;
 use windows::Win32::{Foundation::LPARAM, UI::WindowsAndMessaging::*};
 
@@ -128,7 +127,7 @@ impl ImeBeginComposition {
     }
 }
 
-impl Drop for ImeBeginComposition {
+impl std::ops::Drop for ImeBeginComposition {
     #[inline]
     fn drop(&mut self) {
         self.tx.take().unwrap().send(self.position.get()).ok();
@@ -172,13 +171,6 @@ pub struct Restored {
 #[derive(Clone, Debug)]
 pub struct DpiChanged {
     pub new_dpi: u32,
-}
-
-/// An event of dropped files.
-#[derive(Clone, Debug)]
-pub struct DropFiles {
-    pub paths: Vec<PathBuf>,
-    pub position: PhysicalPosition<i32>,
 }
 
 /// Values which can return from WM_NCHITTEST
@@ -241,7 +233,7 @@ impl NcHitTest {
     }
 }
 
-impl Drop for NcHitTest {
+impl std::ops::Drop for NcHitTest {
     fn drop(&mut self) {
         self.tx.take().unwrap().send(self.value.get()).ok();
     }
@@ -287,6 +279,53 @@ pub struct ContextMenu {
 pub struct ColorModeChanged {
     pub current: ColorModeState,
     pub previous: ColorModeState,
+}
+
+#[derive(Debug)]
+pub struct DragEnter {
+    pub position: ScreenPosition<i32>,
+    pub modifier_keys: ModifierKey,
+    pub data: drag_drop::Data,
+    pub effect: drag_drop::Effect,
+    pub(crate) tx: Option<oneshot::Sender<drag_drop::Effect>>,
+}
+
+impl std::ops::Drop for DragEnter {
+    fn drop(&mut self) {
+        let tx = self.tx.take().unwrap();
+        tx.send(self.effect).ok();
+    }
+}
+
+#[derive(Debug)]
+pub struct DragOver {
+    pub position: ScreenPosition<i32>,
+    pub modifier_keys: ModifierKey,
+    pub effect: drag_drop::Effect,
+    pub(crate) tx: Option<oneshot::Sender<drag_drop::Effect>>,
+}
+
+impl std::ops::Drop for DragOver {
+    fn drop(&mut self) {
+        let tx = self.tx.take().unwrap();
+        tx.send(self.effect).ok();
+    }
+}
+
+#[derive(Debug)]
+pub struct Drop {
+    pub position: ScreenPosition<i32>,
+    pub modifier_keys: ModifierKey,
+    pub data: drag_drop::Data,
+    pub effect: drag_drop::Effect,
+    pub(crate) tx: Option<oneshot::Sender<drag_drop::Effect>>,
+}
+
+impl std::ops::Drop for Drop {
+    fn drop(&mut self) {
+        let tx = self.tx.take().unwrap();
+        tx.send(self.effect).ok();
+    }
 }
 
 /// An event of request to close the window.
@@ -371,10 +410,13 @@ pub enum Event {
     Maximized(Maximized),
     Restored(Restored),
     DpiChanged(DpiChanged),
-    DropFiles(DropFiles),
     NcHitTest(NcHitTest),
     NotifyIcon(NotifyIcon),
     ColorModeChanged(ColorModeChanged),
+    DragEnter(DragEnter),
+    DragOver(DragOver),
+    DragLeave,
+    Drop(Drop),
     CloseRequest(CloseRequest),
     Closed,
     App(App),

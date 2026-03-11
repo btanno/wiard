@@ -1,7 +1,9 @@
+use crate::drag_drop::DropTarget;
 use crate::*;
 use std::any::Any;
 use std::sync::atomic::{self, AtomicU64};
 use tokio::sync::oneshot;
+use windows::Win32::System::Ole::{IDropTarget, RegisterDragDrop};
 use windows::Win32::{
     Foundation::{HINSTANCE, HWND, LPARAM, POINT, RECT, WPARAM},
     Graphics::Dwm::*,
@@ -9,7 +11,6 @@ use windows::Win32::{
     System::LibraryLoader::GetModuleHandleW,
     UI::HiDpi::GetDpiForWindow,
     UI::Input::KeyboardAndMouse::SetFocus,
-    UI::Shell::DragAcceptFiles,
     UI::WindowsAndMessaging::*,
 };
 use windows::core::{BOOL, HSTRING, PCWSTR};
@@ -267,7 +268,14 @@ impl IsReceiver for AsyncEventReceiver {
 }
 
 /// Builds a window.
-pub struct WindowBuilder<'a, Rx, Title = &'static str, Sz = LogicalSize<u32>, Sty = WindowStyle> {
+pub struct WindowBuilder<
+    'a,
+    Rx,
+    Title = &'static str,
+    Sz = LogicalSize<u32>,
+    Sty = WindowStyle,
+    Dt = fn(&WindowHandle) -> IDropTarget,
+> {
     event_rx: &'a Rx,
     title: Title,
     position: PhysicalPosition<i32>,
@@ -276,13 +284,13 @@ pub struct WindowBuilder<'a, Rx, Title = &'static str, Sz = LogicalSize<u32>, St
     visibility: bool,
     enable_ime: bool,
     visible_ime_candidate_window: bool,
-    accept_drop_files: bool,
     auto_close: bool,
     nc_hittest: bool,
     icon: Option<Icon>,
     cursor: Cursor,
     parent: Option<WindowHandle>,
     menu: Option<MenuBar>,
+    drop_target: Dt,
 }
 
 impl<'a, Rx> WindowBuilder<'a, Rx> {
@@ -299,20 +307,20 @@ impl<'a, Rx> WindowBuilder<'a, Rx> {
             visibility: true,
             enable_ime: true,
             visible_ime_candidate_window: true,
-            accept_drop_files: false,
             auto_close: true,
             nc_hittest: false,
             icon: None,
             cursor: Cursor::default(),
             parent: None,
             menu: None,
+            drop_target: |window| DropTarget::new(window).into(),
         }
     }
 }
 
-impl<'a, Rx, Title, Sz, Sty> WindowBuilder<'a, Rx, Title, Sz, Sty> {
+impl<'a, Rx, Title, Sz, Sty, Dt> WindowBuilder<'a, Rx, Title, Sz, Sty, Dt> {
     #[inline]
-    pub fn title<T>(self, title: T) -> WindowBuilder<'a, Rx, T, Sz, Sty>
+    pub fn title<T>(self, title: T) -> WindowBuilder<'a, Rx, T, Sz, Sty, Dt>
     where
         T: Into<String>,
     {
@@ -325,13 +333,13 @@ impl<'a, Rx, Title, Sz, Sty> WindowBuilder<'a, Rx, Title, Sz, Sty> {
             visibility: self.visibility,
             enable_ime: self.enable_ime,
             visible_ime_candidate_window: self.visible_ime_candidate_window,
-            accept_drop_files: self.accept_drop_files,
             auto_close: self.auto_close,
             nc_hittest: self.nc_hittest,
             icon: self.icon,
             cursor: self.cursor,
             parent: self.parent,
             menu: self.menu,
+            drop_target: self.drop_target,
         }
     }
 
@@ -345,7 +353,7 @@ impl<'a, Rx, Title, Sz, Sty> WindowBuilder<'a, Rx, Title, Sz, Sty> {
     pub fn inner_size<Coord>(
         self,
         size: Size<u32, Coord>,
-    ) -> WindowBuilder<'a, Rx, Title, Size<u32, Coord>, Sty> {
+    ) -> WindowBuilder<'a, Rx, Title, Size<u32, Coord>, Sty, Dt> {
         WindowBuilder {
             event_rx: self.event_rx,
             title: self.title,
@@ -355,18 +363,18 @@ impl<'a, Rx, Title, Sz, Sty> WindowBuilder<'a, Rx, Title, Sz, Sty> {
             visibility: self.visibility,
             enable_ime: self.enable_ime,
             visible_ime_candidate_window: self.visible_ime_candidate_window,
-            accept_drop_files: self.accept_drop_files,
             auto_close: self.auto_close,
             nc_hittest: self.nc_hittest,
             icon: self.icon,
             cursor: self.cursor,
             parent: self.parent,
             menu: self.menu,
+            drop_target: self.drop_target,
         }
     }
 
     #[inline]
-    pub fn style<T>(self, style: T) -> WindowBuilder<'a, Rx, Title, Sz, T>
+    pub fn style<T>(self, style: T) -> WindowBuilder<'a, Rx, Title, Sz, T, Dt>
     where
         T: Style,
     {
@@ -379,13 +387,13 @@ impl<'a, Rx, Title, Sz, Sty> WindowBuilder<'a, Rx, Title, Sz, Sty> {
             visibility: self.visibility,
             enable_ime: self.enable_ime,
             visible_ime_candidate_window: self.visible_ime_candidate_window,
-            accept_drop_files: self.accept_drop_files,
             auto_close: self.auto_close,
             nc_hittest: self.nc_hittest,
             icon: self.icon,
             cursor: self.cursor,
             parent: self.parent,
             menu: self.menu,
+            drop_target: self.drop_target,
         }
     }
 
@@ -404,12 +412,6 @@ impl<'a, Rx, Title, Sz, Sty> WindowBuilder<'a, Rx, Title, Sz, Sty> {
     #[inline]
     pub fn visible_ime_candidate_window(mut self, visiblity: bool) -> Self {
         self.visible_ime_candidate_window = visiblity;
-        self
-    }
-
-    #[inline]
-    pub fn accept_drop_files(mut self, accept: bool) -> Self {
-        self.accept_drop_files = accept;
         self
     }
 
@@ -448,9 +450,33 @@ impl<'a, Rx, Title, Sz, Sty> WindowBuilder<'a, Rx, Title, Sz, Sty> {
         self.menu = Some(menu.clone());
         self
     }
+
+    #[inline]
+    pub fn drop_target<T>(self, drop_target: T) -> WindowBuilder<'a, Rx, Title, Sz, Sty, T>
+    where
+        T: FnOnce(&WindowHandle) -> IDropTarget + Send + 'static,
+    {
+        WindowBuilder {
+            event_rx: self.event_rx,
+            title: self.title,
+            position: self.position,
+            inner_size: self.inner_size,
+            style: self.style,
+            visibility: self.visibility,
+            enable_ime: self.enable_ime,
+            visible_ime_candidate_window: self.visible_ime_candidate_window,
+            auto_close: self.auto_close,
+            nc_hittest: self.nc_hittest,
+            icon: self.icon,
+            cursor: self.cursor,
+            parent: self.parent,
+            menu: self.menu,
+            drop_target,
+        }
+    }
 }
 
-struct BuilderProps<Pos, Sz> {
+struct BuilderProps<Pos, Sz, Dt = fn(&WindowHandle) -> IDropTarget> {
     title: HSTRING,
     position: Pos,
     inner_size: Sz,
@@ -459,7 +485,6 @@ struct BuilderProps<Pos, Sz> {
     visiblity: bool,
     enable_ime: bool,
     visible_ime_candidate_window: bool,
-    accept_drop_files: bool,
     auto_close: bool,
     icon: Option<Icon>,
     cursor: Cursor,
@@ -470,15 +495,17 @@ struct BuilderProps<Pos, Sz> {
     menu: Option<MenuBar>,
     set_attr: bool,
     color_mode: ColorMode,
+    drop_target: Option<Dt>,
 }
 
-impl<Sz> BuilderProps<PhysicalPosition<i32>, Sz> {
-    fn new<Rx, Title, Sty>(builder: WindowBuilder<Rx, Title, Sz, Sty>) -> Self
+impl<Sz, Dt> BuilderProps<PhysicalPosition<i32>, Sz, Dt> {
+    fn new<Rx, Title, Sty>(builder: WindowBuilder<Rx, Title, Sz, Sty, Dt>) -> Self
     where
         Rx: IsReceiver,
         Title: Into<String>,
         Sz: ToPhysical<u32, Output<u32> = PhysicalSize<u32>> + Send + 'static,
         Sty: Style,
+        Dt: FnOnce(&WindowHandle) -> IDropTarget + Send + 'static,
     {
         Self {
             title: HSTRING::from(builder.title.into()),
@@ -489,7 +516,6 @@ impl<Sz> BuilderProps<PhysicalPosition<i32>, Sz> {
             visiblity: builder.visibility,
             enable_ime: builder.enable_ime,
             visible_ime_candidate_window: builder.visible_ime_candidate_window,
-            accept_drop_files: builder.accept_drop_files,
             auto_close: builder.auto_close,
             icon: builder.icon,
             cursor: builder.cursor,
@@ -500,6 +526,7 @@ impl<Sz> BuilderProps<PhysicalPosition<i32>, Sz> {
             menu: builder.menu,
             set_attr: true,
             color_mode: ColorMode::System,
+            drop_target: Some(builder.drop_target),
         }
     }
 }
@@ -519,7 +546,6 @@ impl<Pos, Sz> BuilderProps<Pos, Sz> {
             visiblity: builder.visibility,
             enable_ime: builder.enable_ime,
             visible_ime_candidate_window: builder.visible_ime_candidate_window,
-            accept_drop_files: builder.accept_drop_files,
             auto_close: true,
             icon: None,
             cursor: builder.cursor,
@@ -530,6 +556,7 @@ impl<Pos, Sz> BuilderProps<Pos, Sz> {
             menu: None,
             set_attr: false,
             color_mode: ColorMode::System,
+            drop_target: None,
         }
     }
 }
@@ -550,13 +577,14 @@ pub(crate) struct WindowProps {
     pub color_mode_state: ColorModeState,
 }
 
-fn create_window<Pos, Sz>(
-    props: BuilderProps<Pos, Sz>,
+fn create_window<Pos, Sz, Dt>(
+    props: BuilderProps<Pos, Sz, Dt>,
     f: impl FnOnce(WindowHandle) -> WindowKind,
 ) -> Result<WindowHandle>
 where
     Pos: ToPhysical<i32, Output<i32> = PhysicalPosition<i32>> + Send + 'static,
     Sz: ToPhysical<u32, Output<u32> = PhysicalSize<u32>> + Send + 'static,
+    Dt: FnOnce(&WindowHandle) -> IDropTarget + Send + 'static,
 {
     unsafe {
         let dpi = get_dpi_from_point(ScreenPosition::new(0, 0));
@@ -629,7 +657,9 @@ where
                 .ok();
             }
         }
-        DragAcceptFiles(hwnd, props.accept_drop_files);
+        if let Some(drop_target) = props.drop_target {
+            RegisterDragDrop(hwnd, &drop_target(&handle))?;
+        }
         set_preferred_app_mode(APPMODE_ALLOWDARK);
         refresh_immersive_color_policy_state();
         let window_props = WindowProps {
@@ -659,11 +689,12 @@ where
     }
 }
 
-impl<Title, Sz, Sty> WindowBuilder<'_, EventReceiver, Title, Sz, Sty>
+impl<Title, Sz, Sty, Dt> WindowBuilder<'_, EventReceiver, Title, Sz, Sty, Dt>
 where
     Title: Into<String>,
     Sz: ToPhysical<u32, Output<u32> = PhysicalSize<u32>> + Send + 'static,
     Sty: Style,
+    Dt: FnOnce(&WindowHandle) -> IDropTarget + Send + 'static,
 {
     /// Builds a window.
     pub fn build(self) -> Result<Window> {
@@ -1077,7 +1108,7 @@ impl Window {
     #[inline]
     pub fn add_raw_procedure_handler<F>(&self, f: F)
     where
-        F: Fn(u32, WPARAM, LPARAM) + Send + 'static
+        F: Fn(u32, WPARAM, LPARAM) + Send + 'static,
     {
         methods::add_raw_procedure_handler(self.window_handle(), f);
     }
