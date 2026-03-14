@@ -47,6 +47,7 @@ mod color;
 mod context;
 mod device;
 mod dialog;
+pub mod drag_drop;
 mod error;
 pub mod event;
 pub mod ime;

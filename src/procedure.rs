@@ -2,8 +2,8 @@ use crate::*;
 use std::any::Any;
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
-use std::path::PathBuf;
 use tokio::sync::oneshot;
+use windows::Win32::System::Ole::RevokeDragDrop;
 use windows::Win32::{
     Foundation::{COLORREF, HWND, LPARAM, LRESULT, POINT, RECT, SIZE, WPARAM},
     Graphics::Dwm::*,
@@ -14,7 +14,6 @@ use windows::Win32::{
     UI::Input::KeyboardAndMouse::{
         ReleaseCapture, SetCapture, TME_LEAVE, TRACKMOUSEEVENT, TrackMouseEvent, VIRTUAL_KEY,
     },
-    UI::Shell::{DragFinish, DragQueryFileW, DragQueryPoint, HDROP},
     UI::WindowsAndMessaging::*,
 };
 use windows::core::{BOOL, PWSTR};
@@ -469,34 +468,6 @@ unsafe fn on_get_dpi_scaled_size(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> 
     }
 }
 
-unsafe fn on_drop_files(hwnd: HWND, wparam: WPARAM, _lparam: LPARAM) -> LRESULT {
-    unsafe {
-        let hdrop = HDROP(wparam.0 as *mut _);
-        let file_count = DragQueryFileW(hdrop, u32::MAX, None);
-        let mut paths = Vec::with_capacity(file_count as usize);
-        let mut buffer = Vec::new();
-        for i in 0..file_count {
-            let len = DragQueryFileW(hdrop, i, None) as usize + 1;
-            buffer.resize(len, 0);
-            DragQueryFileW(hdrop, i, Some(&mut buffer));
-            buffer.pop();
-            let path: PathBuf = String::from_utf16_lossy(&buffer).into();
-            paths.push(path);
-        }
-        let mut position = POINT::default();
-        let _ = DragQueryPoint(hdrop, &mut position);
-        Context::send_event(
-            WindowHandle::new(hwnd),
-            Event::DropFiles(event::DropFiles {
-                paths,
-                position: position.into(),
-            }),
-        );
-        DragFinish(hdrop);
-        LRESULT(0)
-    }
-}
-
 unsafe fn on_nc_create(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     unsafe {
         if let Err(e) = EnableNonClientDpiScaling(hwnd) {
@@ -543,6 +514,7 @@ unsafe fn on_destroy(hwnd: HWND) -> LRESULT {
     unsafe {
         let handle = WindowHandle::new(hwnd);
         remove_raw_procedure_handler(hwnd);
+        RevokeDragDrop(hwnd).ok();
         Context::send_event(handle, Event::Closed);
         Context::remove_window(handle);
         if Context::is_empty() {
@@ -1041,7 +1013,6 @@ pub(crate) extern "system" fn window_proc(
             WM_NCACTIVATE => on_nc_activate(hwnd, wparam, lparam),
             WM_DPICHANGED => on_dpi_changed(hwnd, wparam, lparam),
             WM_GETDPISCALEDSIZE => on_get_dpi_scaled_size(hwnd, wparam, lparam),
-            WM_DROPFILES => on_drop_files(hwnd, wparam, lparam),
             WM_NCCREATE => on_nc_create(hwnd, wparam, lparam),
             WM_NCHITTEST => on_nc_hittest(hwnd, wparam, lparam),
             WM_MENUCOMMAND => on_menu_command(hwnd, wparam, lparam),

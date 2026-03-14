@@ -1,8 +1,9 @@
 use crate::*;
 use windows::Win32::Foundation::{LPARAM, POINT, WPARAM};
 use windows::Win32::Graphics::Gdi::{ClientToScreen, ScreenToClient};
-use windows::Win32::System::SystemServices::*;
+use windows::Win32::System::{Ole::MK_ALT, SystemServices::*};
 use windows::Win32::UI::WindowsAndMessaging::GetCursorPos;
+use bitflags::bitflags;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
 #[repr(u32)]
@@ -112,5 +113,32 @@ pub fn screen_to_client(window: &impl IsWindow, src: ScreenPosition<i32>) -> Phy
         let mut pt = POINT { x: src.x, y: src.y };
         let _ = ScreenToClient(window.window_handle().as_hwnd(), &mut pt);
         PhysicalPosition::new(pt.x, pt.y)
+    }
+}
+
+bitflags! {
+    #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
+    pub struct ModifierKey: u32 {
+        const CONTROL = MK_CONTROL.0;
+        const SHIFT = MK_SHIFT.0;
+        const ALT = MK_ALT;
+        const LBUTTON = MK_LBUTTON.0;
+        const RBUTTON = MK_RBUTTON.0;
+        const MBUTTON = MK_MBUTTON.0;
+        const XBUTTON1 = MK_XBUTTON1.0;
+        const XBUTTON2 = MK_XBUTTON2.0;
+    }
+}
+
+impl ModifierKey {
+    #[inline]
+    pub const fn as_raw(&self) -> MODIFIERKEYS_FLAGS {
+        MODIFIERKEYS_FLAGS(self.bits())
+    }
+}
+
+impl From<MODIFIERKEYS_FLAGS> for ModifierKey {
+    fn from(value: MODIFIERKEYS_FLAGS) -> Self {
+        Self::from_bits_retain(value.0)
     }
 }
