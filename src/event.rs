@@ -43,7 +43,7 @@ pub struct Resized {
     pub size: PhysicalSize<u32>,
 }
 
-/// An event when a mouse button pressed and released.
+/// An event when a mouse button pressed or released.
 #[derive(Clone, Debug)]
 pub struct MouseInput {
     pub button: MouseButton,
@@ -398,41 +398,95 @@ pub struct Other {
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum Event {
+    /// An event when a window was active.
     Activated,
-    Inactivate,
+    /// An event when a window was inactive.
+    Inactivated,
+    /// An event when a window request to draw.
     Draw(Draw),
+    /// An event when a window moved.
     Moved(Moved),
+    /// An event when start to resize a window.
     EnterResizing,
+    /// An event when resizing a window.
     Resizing(Resizing),
+    /// An event when resized or restored a window from maximized.
     Resized(Resized),
+    /// An event when a mouse button pressed or released.
     MouseInput(MouseInput),
+    /// An event when a mouse cursor moved.
     CursorMoved(CursorMoved),
+    /// An event when a mouse cursor entered a window.
     CursorEntered(CursorEntered),
+    /// An event when a mouse cursor left a window.
     CursorLeft(CursorLeft),
+    /// An event when a mouse wheel is rotated.
     MouseWheel(MouseWheel),
+    /// An event when inputed using a keyboard.
     KeyInput(KeyInput),
+    /// An event that received a keyboard input as the charactor.
     CharInput(CharInput),
+    /// An event when an IME composition begin.
+    ///
+    /// **UiThread wait until this event value is dropped.**
     ImeBeginComposition(ImeBeginComposition),
+    /// An event when an IME composition updated.
     ImeUpdateComposition(ImeUpdateComposition),
+    /// An event when an IME composition is finished.
     ImeEndComposition(ImeEndComposition),
+    /// An event when an IME candidate list opened.
     ImeBeginCandidateList,
+    /// An event when an IME candidate list updated.
     ImeUpdateCandidateList(ImeUpdateCandidateList),
+    /// An event when an IME candidate list closed.
     ImeEndCandidateList,
+    /// An event when pushed a menu item.
     MenuCommand(MenuCommand),
+    /// An event that requests to show a context menu.
     ContextMenu(ContextMenu),
+    /// An event when a window minimized.
     Minizmized,
+    /// An event when a window maximized.
     Maximized(Maximized),
+    /// An event when a window restored from minimized.
     Restored(Restored),
+    /// An event when a display scaling changed.
     DpiChanged(DpiChanged),
+    /// An event of non client area hit test.
+    ///
+    /// **UiThread wait until this event value is dropped.**
     NcHitTest(NcHitTest),
+    /// An event when a notify icon occurred.
     NotifyIcon(NotifyIcon),
+    /// An event when a color mode changed.
     ColorModeChanged(ColorModeChanged),
+    /// An event when a dragging item was entered on the window.
+    ///
+    /// **UiThread wait until this event value is dropped.**
     DragEnter(DragEnter),
+    /// An event when a dragging item was moved on the window.
+    ///
+    /// **UiThread wait until this event value is dropped.**
     DragOver(DragOver),
+    /// An event when a dragging item was left on the window.
     DragLeave,
+    /// An event when a item was dropped on the window.
+    ///
+    /// **UiThread wait until this event value is dropped.**
     Drop(Drop),
+    /// An event of requested to close the window.
+    ///
+    /// This event is called when the window is set `false` to [`auto_close()`].
+    ///
+    /// When destroying the window, call [`destroy()`] in this event value.
+    ///
+    /// [`auto_close()`]: ../struct.WindowBuilder.html#method.auto_close
+    /// [`destroy()`]: ./event/struct.CloseRequest.html#method.destroy
     CloseRequest(CloseRequest),
+    /// An event when the window closed.
     Closed,
+    /// An event which defined by user.
     App(App),
+    /// This event have raw window message values.
     Other(Other),
 }

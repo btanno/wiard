@@ -418,7 +418,7 @@ unsafe fn on_activate(hwnd: HWND, wparam: WPARAM, _lparam: LPARAM) -> LRESULT {
     if active {
         Context::send_event(handle, Event::Activated);
     } else {
-        Context::send_event(handle, Event::Inactivate);
+        Context::send_event(handle, Event::Inactivated);
     }
     LRESULT(0)
 }
