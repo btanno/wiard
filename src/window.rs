@@ -719,11 +719,12 @@ where
     }
 }
 
-impl<Title, Sz, Sty> WindowBuilder<'_, AsyncEventReceiver, Title, Sz, Sty>
+impl<Title, Sz, Sty, Dt> WindowBuilder<'_, AsyncEventReceiver, Title, Sz, Sty, Dt>
 where
     Title: Into<String>,
     Sz: ToPhysical<u32, Output<u32> = PhysicalSize<u32>> + Send + 'static,
     Sty: Style,
+    Dt: FnOnce(&WindowHandle) -> IDropTarget + Send + 'static,
 {
     /// Builds a window.
     pub async fn build(self) -> Result<AsyncWindow> {
@@ -742,10 +743,12 @@ where
     }
 }
 
-impl<Title, Sz> std::future::IntoFuture for WindowBuilder<'_, AsyncEventReceiver, Title, Sz>
+impl<Title, Sz, Sty, Dt> std::future::IntoFuture for WindowBuilder<'_, AsyncEventReceiver, Title, Sz, Sty, Dt>
 where
     Title: Into<String>,
     Sz: ToPhysical<u32, Output<u32> = PhysicalSize<u32>> + Send + 'static,
+    Sty: Style,
+    Dt: FnOnce(&WindowHandle) -> IDropTarget + Send + 'static,
 {
     type Output = Result<AsyncWindow>;
     type IntoFuture = std::pin::Pin<Box<dyn std::future::Future<Output = Self::Output>>>;
