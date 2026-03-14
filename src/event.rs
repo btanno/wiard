@@ -1,6 +1,7 @@
 use crate::*;
 use std::cell::Cell;
 use tokio::sync::oneshot;
+use std::sync::Arc;
 use windows::Win32::{Foundation::LPARAM, UI::WindowsAndMessaging::*};
 
 /// An event when a window request to draw.
@@ -281,11 +282,15 @@ pub struct ColorModeChanged {
     pub previous: ColorModeState,
 }
 
+/// An event of entered the dragging item.
+///
+/// UiThread wait until this event is dropped.
+///
 #[derive(Debug)]
 pub struct DragEnter {
     pub position: PhysicalPosition<i32>,
     pub modifier_keys: ModifierKey,
-    pub data: drag_drop::Data,
+    pub data: Arc<drag_drop::Data>,
     pub effect: drag_drop::Effect,
     pub(crate) tx: Option<oneshot::Sender<drag_drop::Effect>>,
 }
@@ -297,10 +302,15 @@ impl std::ops::Drop for DragEnter {
     }
 }
 
+/// An event of moved the dragging item.
+///
+/// UiThread wait until this event is dropped.
+///
 #[derive(Debug)]
 pub struct DragOver {
     pub position: PhysicalPosition<i32>,
     pub modifier_keys: ModifierKey,
+    pub data: Arc<drag_drop::Data>,
     pub effect: drag_drop::Effect,
     pub(crate) tx: Option<oneshot::Sender<drag_drop::Effect>>,
 }
@@ -312,11 +322,15 @@ impl std::ops::Drop for DragOver {
     }
 }
 
+/// An event of dropped the item.
+///
+/// UiThread wait until this event is dropped.
+///
 #[derive(Debug)]
 pub struct Drop {
     pub position: PhysicalPosition<i32>,
     pub modifier_keys: ModifierKey,
-    pub data: drag_drop::Data,
+    pub data: Arc<drag_drop::Data>,
     pub effect: drag_drop::Effect,
     pub(crate) tx: Option<oneshot::Sender<drag_drop::Effect>>,
 }

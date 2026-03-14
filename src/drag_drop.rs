@@ -1,6 +1,9 @@
 use crate::*;
 use bitflags::bitflags;
+use std::cell::RefCell;
 use std::path::PathBuf;
+use std::rc::Rc;
+use std::sync::Arc;
 use tokio::sync::oneshot;
 use windows::Win32::{
     Foundation::*,
@@ -76,11 +79,18 @@ impl From<DROPEFFECT> for Effect {
     }
 }
 
+#[derive(Debug)]
+struct Current {
+    data: Arc<Data>,
+    effect: Effect,
+}
+
 #[derive(Clone, Debug)]
 #[implement(IDropTarget)]
 pub struct DropTarget {
     handle: WindowHandle,
     helper: IDropTargetHelper,
+    current: Rc<RefCell<Option<Current>>>,
 }
 
 impl DropTarget {
@@ -91,6 +101,7 @@ impl DropTarget {
         Self {
             handle: handle.clone(),
             helper,
+            current: Rc::new(RefCell::new(None)),
         }
     }
 
@@ -117,11 +128,12 @@ impl IDropTarget_Impl for DropTarget_Impl {
                 *pdweffect = DROPEFFECT_NONE;
                 return Ok(());
             };
+            let data = Arc::new(data);
             let (tx, rx) = oneshot::channel();
             let ev = event::DragEnter {
-                data,
                 position: screen_to_client(&self.handle, (pt.x, pt.y).into()),
                 modifier_keys: grfkeystate.into(),
+                data: data.clone(),
                 effect: (*pdweffect).into(),
                 tx: Some(tx),
             };
@@ -134,6 +146,8 @@ impl IDropTarget_Impl for DropTarget_Impl {
                 &POINT { x: pt.x, y: pt.y },
                 *pdweffect,
             )?;
+            let mut current = self.current.borrow_mut();
+            *current = Some(Current { data, effect });
             Ok(())
         }
     }
@@ -145,11 +159,14 @@ impl IDropTarget_Impl for DropTarget_Impl {
         pdweffect: *mut DROPEFFECT,
     ) -> windows_core::Result<()> {
         unsafe {
+            let current = self.current.borrow();
+            let current = current.as_ref().unwrap();
             let (tx, rx) = oneshot::channel();
             let ev = event::DragOver {
                 position: screen_to_client(&self.handle, (pt.x, pt.y).into()),
                 modifier_keys: grfkeystate.into(),
-                effect: (*pdweffect).into(),
+                data: current.data.clone(),
+                effect: current.effect,
                 tx: Some(tx),
             };
             Context::send_event(self.handle, Event::DragOver(ev));
@@ -181,16 +198,13 @@ impl IDropTarget_Impl for DropTarget_Impl {
                 *pdweffect = DROPEFFECT_NONE;
                 return Ok(());
             };
-            let Some(data) = Data::new(dataobj)? else {
-                *pdweffect = DROPEFFECT_NONE;
-                return Ok(());
-            };
+            let current = self.current.borrow_mut().take().unwrap();
             let (tx, rx) = oneshot::channel();
             let ev = event::Drop {
-                data,
+                data: current.data,
                 position: screen_to_client(&self.handle, (pt.x, pt.y).into()),
                 modifier_keys: grfkeystate.into(),
-                effect: (*pdweffect).into(),
+                effect: current.effect,
                 tx: Some(tx),
             };
             Context::send_event(self.handle, Event::Drop(ev));
